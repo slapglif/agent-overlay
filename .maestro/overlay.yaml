@@ -3,9 +3,13 @@ appId: com.slapglif.agentoverlay.debug
 - launchApp:
     clearState: false
 - assertVisible: "Agent Overlay"
-- tapOn: "Start floating icon"
+- tapOn: "Start agent bubbles"
 - waitForAnimationToEnd
-- assertVisible: "☤"
-- tapOn: "☤"
-- assertVisible: "C&C"
-- assertVisible: "Open dashboard"
+- assertVisible: "LH"
+- tapOn: "LH"
+- assertVisible: "Agents"
+- assertVisible: "Live Hermes run"
+- assertVisible: "Collapse to bubbles"
+- tapOn: "Chat"
+- assertVisible: "running • floating chat"
+- assertVisible: "Message Live"

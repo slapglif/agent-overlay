@@ -152,7 +152,7 @@ private fun HeroHeader(state: AgentOverlayUiState, onStartOverlay: () -> Unit) {
                         letterSpacing = (-0.8).sp
                     )
                     Text(
-                        "Hermes Gateway floating C&C",
+                        "Messenger-style agent bubbles",
                         color = AgentColors.Muted,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
@@ -163,14 +163,14 @@ private fun HeroHeader(state: AgentOverlayUiState, onStartOverlay: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StatPill("Gateway", if (state.connection is GatewayConnection.Connected) "online" else "local")
                 StatPill("Agents", state.threads.size.coerceAtLeast(1).toString())
-                StatPill("Mode", "overlay")
+                StatPill("Mode", "bubbles")
             }
             Button(
                 onClick = onStartOverlay,
                 modifier = Modifier.fillMaxWidth().testTag("start-overlay-button"),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = AgentColors.Text, contentColor = Color(0xFF101116))
-            ) { Text("Start floating icon", fontWeight = FontWeight.SemiBold) }
+            ) { Text("Start agent bubbles", fontWeight = FontWeight.SemiBold) }
         }
     }
 }
@@ -239,9 +239,9 @@ private fun ThreadList(threads: List<AgentThread>, selectedId: String?, onSelect
     GlassPanel(modifier.testTag("thread-list")) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Agents / threads", color = AgentColors.Text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text("Agent bubble roster", color = AgentColors.Text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
-                Text("DISCORD-STYLE", color = AgentColors.Subtle, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("HOVER-FIRST", color = AgentColors.Subtle, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(threads.ifEmpty { listOf(AgentThread("mobile-overlay", "Mobile overlay", AgentThread.Status.Idle)) }) { thread ->
@@ -301,7 +301,7 @@ private fun ChatPane(
                 }
                 Column(Modifier.weight(1f)) {
                     Text(thread?.title ?: "Select a thread", color = AgentColors.Text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("Gateway session • live command transcript", color = AgentColors.Muted, fontSize = 12.sp)
+                    Text("Tap title bar for full-screen settings • chat stays floating", color = AgentColors.Muted, fontSize = 12.sp)
                 }
             }
             Spacer(Modifier.height(10.dp))
