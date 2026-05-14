@@ -6,7 +6,10 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
@@ -14,37 +17,16 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.unit.dp
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import com.slapglif.agentoverlay.MainActivity
 import com.slapglif.agentoverlay.R
-import com.slapglif.agentoverlay.ui.theme.AgentOverlayTheme
 
 class OverlayService : Service() {
     private lateinit var windowManager: WindowManager
     private var overlayView: View? = null
-    private val expanded = mutableStateOf(false)
+    private var isExpanded = false
 
     override fun onCreate() {
         super.onCreate()
@@ -63,60 +45,92 @@ class OverlayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun showOverlay() {
-        if (overlayView != null) return
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        ).apply {
+        val params = overlayParams().apply {
             gravity = Gravity.TOP or Gravity.START
             x = 24
             y = 220
         }
-        val view = ComposeView(this).apply {
-            setContent {
-                AgentOverlayTheme {
-                    Box(Modifier.padding(8.dp)) {
-                        if (expanded.value) {
-                            Column(
-                                Modifier
-                                    .width(320.dp)
-                                    .clip(RoundedCornerShape(24.dp))
-                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.96f))
-                                    .padding(16.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    OverlayOrb { expanded.value = false }
-                                    Spacer(Modifier.width(12.dp))
-                                    Text("Agent Overlay", style = MaterialTheme.typography.titleMedium)
-                                }
-                                Spacer(Modifier.height(12.dp))
-                                Text("C&C", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                                Text("Open the app to connect Hermes, inspect jobs, and chat in thread-style sessions.")
-                                Spacer(Modifier.height(12.dp))
-                                Text(
-                                    "Open dashboard",
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable { openMainActivity() }
-                                        .padding(12.dp)
-                                )
-                            }
-                        } else {
-                            OverlayOrb { expanded.value = true }
-                        }
-                    }
-                }
-            }
-        }
+        renderOverlay(params)
+    }
+
+    private fun renderOverlay(params: WindowManager.LayoutParams) {
+        overlayView?.let { runCatching { windowManager.removeView(it) } }
+        val view = if (isExpanded) expandedMenu(params) else orb(params)
         view.setOnTouchListener(DraggableTouchListener(params, windowManager, view))
         overlayView = view
         windowManager.addView(view, params)
     }
+
+    private fun orb(params: WindowManager.LayoutParams): TextView = TextView(this).apply {
+        text = "☤"
+        contentDescription = "Agent Overlay"
+        textSize = 30f
+        typeface = Typeface.DEFAULT_BOLD
+        gravity = Gravity.CENTER
+        setTextColor(Color.WHITE)
+        background = rounded(Color.rgb(124, 58, 237), 999f)
+        setPadding(dp(18), dp(12), dp(18), dp(12))
+        setOnClickListener {
+            isExpanded = true
+            renderOverlay(params)
+        }
+    }
+
+    private fun expandedMenu(params: WindowManager.LayoutParams): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        background = rounded(Color.rgb(17, 24, 39), 32f)
+        setPadding(dp(18), dp(16), dp(18), dp(16))
+        minimumWidth = dp(300)
+        addView(TextView(context).apply {
+            text = "☤ Agent Overlay"
+            contentDescription = "Agent Overlay menu"
+            textSize = 20f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+        })
+        addView(TextView(context).apply {
+            text = "C&C"
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.rgb(56, 189, 248))
+            setPadding(0, dp(12), 0, 0)
+        })
+        addView(TextView(context).apply {
+            text = "Hermes gateway command center is live. Open dashboard for agents, jobs, and thread chat."
+            textSize = 14f
+            setTextColor(Color.rgb(229, 231, 235))
+            setPadding(0, dp(6), 0, dp(10))
+        })
+        addView(TextView(context).apply {
+            text = "Open dashboard"
+            textSize = 16f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            background = rounded(Color.rgb(124, 58, 237), 18f)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setOnClickListener { openMainActivity() }
+        })
+        addView(TextView(context).apply {
+            text = "Collapse"
+            textSize = 14f
+            setTextColor(Color.rgb(203, 213, 225))
+            gravity = Gravity.CENTER
+            setPadding(dp(12), dp(12), dp(12), 0)
+            setOnClickListener {
+                isExpanded = false
+                renderOverlay(params)
+            }
+        })
+    }
+
+    private fun overlayParams(): WindowManager.LayoutParams = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+        PixelFormat.TRANSLUCENT
+    )
 
     private fun openMainActivity() {
         val intent = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -146,23 +160,17 @@ class OverlayService : Service() {
         }
     }
 
+    private fun rounded(color: Int, radius: Float): GradientDrawable = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = radius
+        setColor(color)
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
     companion object {
         private const val CHANNEL_ID = "agent_overlay"
         private const val NOTIFICATION_ID = 42
-    }
-}
-
-@androidx.compose.runtime.Composable
-private fun OverlayOrb(onClick: () -> Unit) {
-    Box(
-        Modifier
-            .size(64.dp)
-            .clip(CircleShape)
-            .background(Color(0xFF7C3AED))
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Text("☤", color = Color.White, style = MaterialTheme.typography.headlineMedium)
     }
 }
 
@@ -175,10 +183,12 @@ private class DraggableTouchListener(
     private var initialY = 0
     private var initialTouchX = 0f
     private var initialTouchY = 0f
+    private var moved = false
 
     override fun onTouch(v: View, event: MotionEvent): Boolean {
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
+                moved = false
                 initialX = params.x
                 initialY = params.y
                 initialTouchX = event.rawX
@@ -186,11 +196,15 @@ private class DraggableTouchListener(
                 return false
             }
             MotionEvent.ACTION_MOVE -> {
-                params.x = initialX + (event.rawX - initialTouchX).toInt()
-                params.y = initialY + (event.rawY - initialTouchY).toInt()
+                val dx = (event.rawX - initialTouchX).toInt()
+                val dy = (event.rawY - initialTouchY).toInt()
+                moved = moved || kotlin.math.abs(dx) > 8 || kotlin.math.abs(dy) > 8
+                params.x = initialX + dx
+                params.y = initialY + dy
                 windowManager.updateViewLayout(view, params)
                 return true
             }
+            MotionEvent.ACTION_UP -> return moved
         }
         return false
     }

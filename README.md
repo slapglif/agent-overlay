@@ -52,6 +52,23 @@ For an Android emulator, use `http://10.0.2.2:8642` as the gateway URL. For a ph
 ./gradlew :app:testDebugUnitTest
 ```
 
+## Visual validation
+
+The repo includes Maestro flows and a local mock Hermes gateway for repeatable emulator validation:
+
+```bash
+python3 scripts/mock_hermes_gateway.py
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+maestro test .maestro/smoke.yaml
+adb shell appops set com.slapglif.agentoverlay.debug SYSTEM_ALERT_WINDOW allow
+maestro test .maestro/overlay.yaml
+```
+
+Validated flows:
+
+- `.maestro/smoke.yaml` — launch, connect to mock Hermes, list jobs as threads, send chat, receive assistant reply.
+- `.maestro/overlay.yaml` — grant overlay app-op, start floating icon, expand C&C menu, verify Open dashboard affordance.
+
 CI runs the same build and JVM unit tests on every push/PR.
 
 ## Production roadmap

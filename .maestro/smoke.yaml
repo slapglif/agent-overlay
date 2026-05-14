@@ -1,0 +1,20 @@
+appId: com.slapglif.agentoverlay.debug
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Agent Overlay"
+- assertVisible: "Hermes Gateway floating C&C"
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "Live Hermes run"
+    timeout: 10000
+- assertVisible: "Agents / threads"
+- assertVisible: "Daily gateway brief"
+- tapOn: "Live Hermes run"
+- tapOn: "Message Hermes"
+- inputText: "status check"
+- tapOn: "Send"
+- assertVisible: "status check"
+- extendedWaitUntil:
+    visible: "Mock Hermes acknowledged: status check"
+    timeout: 10000
