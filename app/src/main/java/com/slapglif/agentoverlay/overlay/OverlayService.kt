@@ -68,7 +68,8 @@ class OverlayService : Service() {
         typeface = Typeface.DEFAULT_BOLD
         gravity = Gravity.CENTER
         setTextColor(Color.WHITE)
-        background = rounded(Color.rgb(124, 58, 237), 999f)
+        background = rounded(Color.rgb(255, 99, 99), 999f)
+        elevation = dp(12).toFloat()
         setPadding(dp(18), dp(12), dp(18), dp(12))
         setOnClickListener {
             isExpanded = true
@@ -78,7 +79,8 @@ class OverlayService : Service() {
 
     private fun expandedMenu(params: WindowManager.LayoutParams): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        background = rounded(Color.rgb(17, 24, 39), 32f)
+        background = rounded(Color.rgb(7, 8, 10), 32f)
+        elevation = dp(18).toFloat()
         setPadding(dp(18), dp(16), dp(18), dp(16))
         minimumWidth = dp(300)
         addView(TextView(context).apply {
@@ -92,7 +94,7 @@ class OverlayService : Service() {
             text = "C&C"
             textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.rgb(56, 189, 248))
+            setTextColor(Color.rgb(255, 99, 99))
             setPadding(0, dp(12), 0, 0)
         })
         addView(TextView(context).apply {
@@ -107,7 +109,7 @@ class OverlayService : Service() {
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            background = rounded(Color.rgb(124, 58, 237), 18f)
+            background = rounded(Color.rgb(94, 106, 210), 18f)
             setPadding(dp(12), dp(10), dp(12), dp(10))
             setOnClickListener { openMainActivity() }
         })

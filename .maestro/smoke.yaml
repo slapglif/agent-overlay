@@ -13,6 +13,7 @@ appId: com.slapglif.agentoverlay.debug
 - tapOn: "Live Hermes run"
 - tapOn: "Message Hermes"
 - inputText: "status check"
+- hideKeyboard
 - tapOn: "Send"
 - assertVisible: "status check"
 - extendedWaitUntil:
