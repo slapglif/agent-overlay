@@ -107,14 +107,14 @@ class OverlayService : Service() {
         contentDescription = "Agent list and hover controls"
         addView(hoverControls(params))
         addView(TextView(context).apply {
-            text = "Agents"
-            textSize = 20f
+            text = "Agent heads"
+            textSize = 21f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(TEXT)
             setPadding(0, dp(12), 0, dp(4))
         })
         addView(TextView(context).apply {
-            text = "Tap a bubble to keep chatting here. Tap a title or ⚙ for full screen."
+            text = "Choose an agent to chat without leaving the current app. Title / ↗ / ⚙ opens full screen."
             textSize = 13f
             setTextColor(MUTED)
             setPadding(0, 0, 0, dp(10))
@@ -145,7 +145,7 @@ class OverlayService : Service() {
                 addView(TextView(context).apply {
                     text = selectedAgent.title
                     contentDescription = "${selectedAgent.title} title bar"
-                    textSize = 17f
+                    textSize = 18f
                     typeface = Typeface.DEFAULT_BOLD
                     setTextColor(TEXT)
                     setOnClickListener { openMainActivity() }
@@ -189,7 +189,7 @@ class OverlayService : Service() {
     private fun hoverControls(params: WindowManager.LayoutParams): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        background = rounded(Color.argb(110, 255, 255, 255), 999f, Color.argb(30, 255, 255, 255))
+        background = rounded(Color.rgb(19, 20, 26), 999f, Color.argb(46, 255, 255, 255))
         setPadding(dp(8), dp(6), dp(8), dp(6))
         addView(TextView(context).apply {
             text = "☤"
@@ -198,7 +198,7 @@ class OverlayService : Service() {
             setTextColor(RAY_RED)
         })
         addView(TextView(context).apply {
-            text = "  hover control"
+            text = "  agents"
             textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(MUTED)
@@ -217,8 +217,8 @@ class OverlayService : Service() {
     private fun agentRow(agent: OverlayAgent, onSelect: () -> Unit): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        background = rounded(Color.argb(15, 255, 255, 255), 20f, Color.argb(18, 255, 255, 255))
-        setPadding(dp(10), dp(10), dp(10), dp(10))
+        background = rounded(Color.argb(18, 255, 255, 255), 22f, Color.argb(24, 255, 255, 255))
+        setPadding(dp(11), dp(11), dp(11), dp(11))
         setOnClickListener { onSelect() }
         addView(agentBubble(agent, compact = true), LinearLayout.LayoutParams(dp(42), dp(42)).apply { rightMargin = dp(10) })
         addView(LinearLayout(context).apply {
@@ -246,7 +246,7 @@ class OverlayService : Service() {
     }
 
     private fun agentBubble(agent: OverlayAgent, compact: Boolean): FrameLayout = FrameLayout(this).apply {
-        background = rounded(agent.color, 999f, Color.argb(55, 255, 255, 255))
+        background = rounded(agent.color, 999f, Color.argb(70, 255, 255, 255))
         elevation = dp(if (compact) 10 else 16).toFloat()
         addView(TextView(context).apply {
             text = agent.initials
@@ -268,7 +268,7 @@ class OverlayService : Service() {
         textSize = 13f
         setLineSpacing(0f, 1.08f)
         setTextColor(TEXT)
-        background = rounded(if (alignEnd) Color.argb(55, 113, 112, 255) else Color.argb(24, 255, 255, 255), 18f, Color.argb(22, 255, 255, 255))
+        background = rounded(if (alignEnd) Color.argb(66, 113, 112, 255) else Color.argb(30, 255, 255, 255), 18f, Color.argb(26, 255, 255, 255))
         setPadding(dp(10), dp(8), dp(10), dp(8))
         val width = dp(250)
         layoutParams = LinearLayout.LayoutParams(width, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
@@ -279,7 +279,7 @@ class OverlayService : Service() {
 
     private fun panel(widthDp: Int, heightDp: Int): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        background = rounded(PANEL, 28f, Color.argb(26, 255, 255, 255))
+        background = rounded(PANEL, 30f, Color.argb(34, 255, 255, 255))
         elevation = dp(18).toFloat()
         setPadding(dp(14), dp(12), dp(14), dp(14))
         minimumWidth = dp(widthDp)
@@ -302,7 +302,7 @@ class OverlayService : Service() {
         textSize = if (wide) 13f else 14f
         typeface = Typeface.DEFAULT_BOLD
         setTextColor(TEXT)
-        background = rounded(if (wide) INDIGO else Color.argb(26, 255, 255, 255), 999f, Color.argb(28, 255, 255, 255))
+        background = rounded(if (wide) INDIGO else Color.rgb(35, 36, 44), 999f, Color.argb(34, 255, 255, 255))
         setPadding(dp(if (wide) 14 else 9), dp(7), dp(if (wide) 14 else 9), dp(7))
         setOnClickListener { onClick() }
     }
@@ -365,7 +365,7 @@ class OverlayService : Service() {
         private val TEXT = Color.rgb(246, 247, 251)
         private val MUTED = Color.rgb(160, 166, 180)
         private val SUBTLE = Color.rgb(118, 126, 143)
-        private val PANEL = Color.rgb(7, 8, 10)
+        private val PANEL = Color.rgb(5, 6, 8)
         private val RAY_RED = Color.rgb(255, 99, 99)
         private val INDIGO = Color.rgb(113, 112, 255)
         private val SUCCESS = Color.rgb(69, 222, 128)

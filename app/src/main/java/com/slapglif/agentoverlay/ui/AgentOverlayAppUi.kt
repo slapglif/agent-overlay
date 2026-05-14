@@ -75,81 +75,53 @@ fun AgentOverlayAppUi(
         Modifier
             .fillMaxSize()
             .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF11121A), AgentColors.Void, Color(0xFF050608))
+                Brush.radialGradient(
+                    colors = listOf(Color(0xFF171A2B), AgentColors.Void, Color(0xFF030405)),
+                    radius = 1250f
                 )
             )
     ) {
-        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             HeroHeader(state = state, onStartOverlay = onStartOverlay)
             GatewayConfigCard(state, onGatewayUrlChanged, onApiKeyChanged, onConnect, onRefresh)
             state.error?.let { ErrorStrip(it) }
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 if (maxWidth < 720.dp) {
-                    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ThreadList(state.threads, state.selectedThreadId, onSelectThread, Modifier.weight(0.42f).fillMaxWidth())
+                    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ThreadList(state.threads, state.selectedThreadId, onSelectThread, Modifier.weight(0.39f).fillMaxWidth())
                         ChatPane(selectedThread, draft, { draft = it }, {
                             onSendMessage(draft)
                             draft = ""
-                        }, Modifier.weight(0.58f).fillMaxWidth())
+                        }, Modifier.weight(0.61f).fillMaxWidth())
                     }
                 } else {
                     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ThreadList(state.threads, state.selectedThreadId, onSelectThread, Modifier.weight(0.35f).fillMaxHeight())
+                        ThreadList(state.threads, state.selectedThreadId, onSelectThread, Modifier.weight(0.34f).fillMaxHeight())
                         ChatPane(selectedThread, draft, { draft = it }, {
                             onSendMessage(draft)
                             draft = ""
-                        }, Modifier.weight(0.65f).fillMaxHeight())
+                        }, Modifier.weight(0.66f).fillMaxHeight())
                     }
                 }
             }
         }
-        if (state.isLoading) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .padding(16.dp)
-                    .testTag("loading-indicator"),
-                contentAlignment = Alignment.Center
-            ) {
-                GlassPanel(Modifier.width(156.dp)) {
-                    Row(
-                        Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = AgentColors.Indigo)
-                        Text("Syncing", color = AgentColors.Text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
-        }
+        if (state.isLoading) LoadingPill()
     }
 }
 
 @Composable
 private fun HeroHeader(state: AgentOverlayUiState, onStartOverlay: () -> Unit) {
     GlassPanel {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(
-                    Modifier
-                        .size(52.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(Brush.linearGradient(listOf(AgentColors.RayRed, AgentColors.Indigo)))
-                        .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(18.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("☤", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                }
+                BubbleClusterMark()
                 Column(Modifier.weight(1f)) {
                     Text(
                         "Agent Overlay",
                         color = AgentColors.Text,
-                        fontSize = 28.sp,
+                        fontSize = 27.sp,
                         fontWeight = FontWeight.SemiBold,
-                        letterSpacing = (-0.8).sp
+                        letterSpacing = (-0.9).sp
                     )
                     Text(
                         "Messenger-style agent bubbles",
@@ -160,18 +132,52 @@ private fun HeroHeader(state: AgentOverlayUiState, onStartOverlay: () -> Unit) {
                 }
                 MiniStatusDot(state.connection)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 StatPill("Gateway", if (state.connection is GatewayConnection.Connected) "online" else "local")
                 StatPill("Agents", state.threads.size.coerceAtLeast(1).toString())
                 StatPill("Mode", "bubbles")
             }
+            FlowHintStrip()
             Button(
                 onClick = onStartOverlay,
-                modifier = Modifier.fillMaxWidth().testTag("start-overlay-button"),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AgentColors.Text, contentColor = Color(0xFF101116))
-            ) { Text("Start agent bubbles", fontWeight = FontWeight.SemiBold) }
+                modifier = Modifier.fillMaxWidth().height(50.dp).testTag("start-overlay-button"),
+                shape = RoundedCornerShape(17.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AgentColors.Text, contentColor = Color(0xFF090A0D))
+            ) { Text("Start agent bubbles", fontWeight = FontWeight.SemiBold, letterSpacing = (-0.1).sp) }
         }
+    }
+}
+
+@Composable
+private fun BubbleClusterMark() {
+    Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(58.dp).clip(CircleShape).background(AgentColors.Indigo.copy(alpha = 0.16f)))
+        Box(Modifier.size(48.dp).clip(CircleShape).background(Brush.linearGradient(listOf(AgentColors.Indigo, AgentColors.Info))).border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape), contentAlignment = Alignment.Center) {
+            Text("LH", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        }
+        Box(Modifier.align(Alignment.BottomEnd).size(18.dp).clip(CircleShape).background(AgentColors.Success).border(2.dp, AgentColors.Panel, CircleShape))
+    }
+}
+
+@Composable
+private fun FlowHintStrip() {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.035f))
+            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(16.dp))
+            .padding(horizontal = 10.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text("Bubble", color = AgentColors.Text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text("→", color = AgentColors.Subtle, fontSize = 12.sp)
+        Text("agent list", color = AgentColors.Muted, fontSize = 12.sp)
+        Text("→", color = AgentColors.Subtle, fontSize = 12.sp)
+        Text("floating chat", color = AgentColors.Indigo, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.weight(1f))
+        Text("⚙ full screen", color = AgentColors.Subtle, fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -179,12 +185,7 @@ private fun HeroHeader(state: AgentOverlayUiState, onStartOverlay: () -> Unit) {
 private fun MiniStatusDot(connection: GatewayConnection) {
     val connected = connection is GatewayConnection.Connected
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(
-            Modifier
-                .size(12.dp)
-                .clip(CircleShape)
-                .background(if (connected) AgentColors.Success else AgentColors.Warn)
-        )
+        Box(Modifier.size(12.dp).clip(CircleShape).background(if (connected) AgentColors.Success else AgentColors.Warn))
         Text(if (connected) "ONLINE" else "READY", color = AgentColors.Subtle, fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
 }
@@ -199,9 +200,9 @@ private fun GatewayConfigCard(
     onRefresh: () -> Unit
 ) {
     GlassPanel {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Command link", color = AgentColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("Settings / command link", color = AgentColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
                 Text(connectionText(state.connection), color = AgentColors.Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -209,7 +210,7 @@ private fun GatewayConfigCard(
                 state.gatewayUrl,
                 onGatewayUrlChanged,
                 label = { Text("Gateway URL") },
-                supportingText = { Text("Emulator 10.0.2.2 • device LAN/IP • HTTPS tunnel ready") },
+                supportingText = { Text("10.0.2.2 on emulator • LAN/IP on device") },
                 singleLine = true,
                 colors = textFieldColors(),
                 shape = RoundedCornerShape(14.dp),
@@ -219,7 +220,7 @@ private fun GatewayConfigCard(
                 state.apiKey,
                 onApiKeyChanged,
                 label = { Text("API_SERVER_KEY") },
-                supportingText = { Text("Bearer token from Hermes API server") },
+                supportingText = { Text("Used only by the gateway session") },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 colors = textFieldColors(),
@@ -254,29 +255,36 @@ private fun ThreadList(threads: List<AgentThread>, selectedId: String?, onSelect
 
 @Composable
 private fun ThreadRow(thread: AgentThread, selected: Boolean, onClick: () -> Unit) {
-    val statusColor = when (thread.status) {
-        AgentThread.Status.Running -> AgentColors.Success
-        AgentThread.Status.Failed -> AgentColors.RayRed
-        AgentThread.Status.Completed -> AgentColors.Indigo
-        AgentThread.Status.Idle -> AgentColors.Warn
-    }
+    val statusColor = statusColor(thread.status)
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (selected) AgentColors.Indigo.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.035f))
-            .border(1.dp, if (selected) AgentColors.Indigo.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.06f), RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (selected) AgentColors.Indigo.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.032f))
+            .border(1.dp, if (selected) AgentColors.Indigo.copy(alpha = 0.62f) else Color.White.copy(alpha = 0.065f), RoundedCornerShape(18.dp))
             .clickable { onClick() }
-            .padding(12.dp),
+            .padding(11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Box(Modifier.size(10.dp).clip(CircleShape).background(statusColor))
+        AgentAvatar(thread.title, statusColor)
         Column(Modifier.weight(1f)) {
             Text(thread.title, color = AgentColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("# ${thread.id}", color = AgentColors.Subtle, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace)
+            Text("${thread.id} • tap title for full screen", color = AgentColors.Subtle, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace)
         }
         Text(thread.status.name.lowercase(), color = statusColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun AgentAvatar(title: String, color: Color) {
+    val initials = title.split(" ").take(2).joinToString("") { it.firstOrNull()?.uppercase() ?: "" }.ifBlank { "A" }
+    Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(38.dp).clip(CircleShape).background(color.copy(alpha = 0.18f)))
+        Box(Modifier.size(32.dp).clip(CircleShape).background(color.copy(alpha = 0.28f)).border(1.dp, color.copy(alpha = 0.58f), CircleShape), contentAlignment = Alignment.Center) {
+            Text(initials.take(2), color = AgentColors.Text, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+        Box(Modifier.align(Alignment.BottomEnd).size(10.dp).clip(CircleShape).background(color).border(1.dp, AgentColors.Panel, CircleShape))
     }
 }
 
@@ -295,32 +303,20 @@ private fun ChatPane(
             if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
         }
         Column(Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(Modifier.size(34.dp).clip(RoundedCornerShape(12.dp)).background(AgentColors.IndigoDeep), contentAlignment = Alignment.Center) {
-                    Text("#", color = Color.White, fontWeight = FontWeight.Bold)
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(thread?.title ?: "Select a thread", color = AgentColors.Text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("Tap title bar for full-screen settings • chat stays floating", color = AgentColors.Muted, fontSize = 12.sp)
-                }
-            }
+            ChatHeader(thread)
             Spacer(Modifier.height(10.dp))
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color.Black.copy(alpha = 0.16f))
-                    .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.Black.copy(alpha = 0.20f))
+                    .border(1.dp, Color.White.copy(alpha = 0.055f), RoundedCornerShape(20.dp))
                     .padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                if (messages.isEmpty()) {
-                    item { EmptyTranscript() }
-                } else {
-                    items(messages) { message -> MessageBubble(message) }
-                }
+                if (messages.isEmpty()) item { EmptyTranscript() } else items(messages) { message -> MessageBubble(message) }
             }
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -329,18 +325,40 @@ private fun ChatPane(
                     onDraftChanged,
                     label = { Text("Message Hermes") },
                     colors = textFieldColors(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(18.dp),
                     modifier = Modifier.weight(1f).heightIn(min = 58.dp).testTag("message-field")
                 )
                 Button(
                     onClick = onSend,
                     enabled = draft.isNotBlank(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AgentColors.Indigo, disabledContainerColor = AgentColors.SurfaceHigh, contentColor = Color.White),
                     modifier = Modifier.height(58.dp).testTag("send-button")
                 ) { Text("Send", fontWeight = FontWeight.SemiBold) }
             }
         }
+    }
+}
+
+@Composable
+private fun ChatHeader(thread: AgentThread?) {
+    val status = thread?.status ?: AgentThread.Status.Idle
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = 0.035f))
+            .border(1.dp, Color.White.copy(alpha = 0.065f), RoundedCornerShape(18.dp))
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        AgentAvatar(thread?.title ?: "Select", statusColor(status))
+        Column(Modifier.weight(1f)) {
+            Text(thread?.title ?: "Select an agent", color = AgentColors.Text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("Tap title bar for full-screen settings • chat stays floating", color = AgentColors.Muted, fontSize = 12.sp)
+        }
+        Text("↗", color = AgentColors.Subtle, fontSize = 18.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -354,18 +372,14 @@ private fun MessageBubble(message: ChatMessage) {
         else -> AgentColors.Info
     }
     Box(Modifier.fillMaxWidth(), contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart) {
-        Row(
-            Modifier.fillMaxWidth(0.92f),
-            horizontalArrangement = Arrangement.spacedBy(9.dp),
-            verticalAlignment = Alignment.Top
-        ) {
+        Row(Modifier.fillMaxWidth(0.92f), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.Top) {
             if (!isUser) Avatar(if (isTool) "⚙" else "H", accent)
             Column(
                 Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(if (isUser) AgentColors.Indigo.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.045f))
-                    .border(1.dp, if (isUser) AgentColors.Indigo.copy(alpha = 0.42f) else Color.White.copy(alpha = 0.06f), RoundedCornerShape(18.dp))
+                    .background(if (isUser) AgentColors.Indigo.copy(alpha = 0.24f) else Color.White.copy(alpha = 0.048f))
+                    .border(1.dp, if (isUser) AgentColors.Indigo.copy(alpha = 0.46f) else Color.White.copy(alpha = 0.065f), RoundedCornerShape(18.dp))
                     .padding(12.dp)
             ) {
                 Text(if (isUser) "You" else if (isTool) "Gateway" else "Hermes", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -379,31 +393,35 @@ private fun MessageBubble(message: ChatMessage) {
 
 @Composable
 private fun Avatar(label: String, color: Color) {
-    Box(Modifier.size(28.dp).clip(RoundedCornerShape(10.dp)).background(color.copy(alpha = 0.2f)).border(1.dp, color.copy(alpha = 0.45f), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(28.dp).clip(CircleShape).background(color.copy(alpha = 0.2f)).border(1.dp, color.copy(alpha = 0.45f), CircleShape), contentAlignment = Alignment.Center) {
         Text(label, color = color, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
 private fun EmptyTranscript() {
-    Column(
-        Modifier.fillMaxWidth().padding(22.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("No messages yet", color = AgentColors.Text, fontWeight = FontWeight.SemiBold)
-        Text("Pick a running agent thread and send Hermes a command.", color = AgentColors.Muted, fontSize = 13.sp)
+        Text("Pick a running agent bubble and send Hermes a command.", color = AgentColors.Muted, fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun LoadingPill() {
+    Box(Modifier.fillMaxWidth().padding(16.dp).testTag("loading-indicator"), contentAlignment = Alignment.Center) {
+        GlassPanel(Modifier.width(156.dp)) {
+            Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = AgentColors.Indigo)
+                Text("Syncing", color = AgentColors.Text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            }
+        }
     }
 }
 
 @Composable
 private fun StatPill(label: String, value: String) {
     Row(
-        Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(Color.White.copy(alpha = 0.045f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(999.dp))
-            .padding(horizontal = 10.dp, vertical = 7.dp),
+        Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White.copy(alpha = 0.045f)).border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(999.dp)).padding(horizontal = 10.dp, vertical = 7.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -419,10 +437,7 @@ private fun CommandButton(text: String, onClick: () -> Unit, modifier: Modifier 
         modifier = modifier.height(46.dp),
         shape = RoundedCornerShape(14.dp),
         border = if (primary) null else BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (primary) AgentColors.IndigoDeep else Color.White.copy(alpha = 0.045f),
-            contentColor = Color.White
-        )
+        colors = ButtonDefaults.buttonColors(containerColor = if (primary) AgentColors.IndigoDeep else Color.White.copy(alpha = 0.045f), contentColor = Color.White)
     ) { Text(text, fontWeight = FontWeight.SemiBold) }
 }
 
@@ -430,23 +445,18 @@ private fun CommandButton(text: String, onClick: () -> Unit, modifier: Modifier 
 private fun GlassPanel(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = AgentColors.Panel.copy(alpha = 0.92f)),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        shape = RoundedCornerShape(25.dp),
+        colors = CardDefaults.cardColors(containerColor = AgentColors.Panel.copy(alpha = 0.90f)),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.085f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) { content() }
 }
 
 @Composable
 private fun ErrorStrip(message: String) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(AgentColors.RayRed.copy(alpha = 0.12f))
-            .border(1.dp, AgentColors.RayRed.copy(alpha = 0.24f), RoundedCornerShape(14.dp))
-            .padding(12.dp)
-    ) { Text(message, color = AgentColors.RayRed, fontSize = 13.sp, fontWeight = FontWeight.Medium) }
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(AgentColors.RayRed.copy(alpha = 0.12f)).border(1.dp, AgentColors.RayRed.copy(alpha = 0.24f), RoundedCornerShape(14.dp)).padding(12.dp)) {
+        Text(message, color = AgentColors.RayRed, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
 }
 
 @Composable
@@ -463,6 +473,13 @@ private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedSupportingTextColor = AgentColors.Subtle,
     cursorColor = AgentColors.Info
 )
+
+private fun statusColor(status: AgentThread.Status): Color = when (status) {
+    AgentThread.Status.Running -> AgentColors.Success
+    AgentThread.Status.Failed -> AgentColors.RayRed
+    AgentThread.Status.Completed -> AgentColors.Indigo
+    AgentThread.Status.Idle -> AgentColors.Warn
+}
 
 private fun connectionText(connection: GatewayConnection): String = when (connection) {
     GatewayConnection.Disconnected -> "Disconnected"

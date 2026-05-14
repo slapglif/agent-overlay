@@ -7,7 +7,7 @@ appId: com.slapglif.agentoverlay.debug
 - waitForAnimationToEnd
 - assertVisible: "LH"
 - tapOn: "LH"
-- assertVisible: "Agents"
+- assertVisible: "Agent heads"
 - assertVisible: "Live Hermes run"
 - assertVisible: "Collapse to bubbles"
 - tapOn: "Chat"
