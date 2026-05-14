@@ -76,7 +76,7 @@ fun AgentOverlayAppUi(
             .fillMaxSize()
             .background(
                 Brush.radialGradient(
-                    colors = listOf(Color(0xFFFFFFFF), AgentColors.Void, Color(0xFFE7E4DA)),
+                    colors = listOf(Color(0xFF1B1C27), AgentColors.Void, Color(0xFF040508)),
                     radius = 1250f
                 )
             )
@@ -116,11 +116,11 @@ fun AgentOverlayAppUi(
 private fun ActivityRail() {
     Column(
         Modifier
-            .width(46.dp)
+            .width(56.dp)
             .fillMaxHeight()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(28.dp))
             .background(AgentColors.Surface)
-            .border(1.dp, AgentColors.Border, RoundedCornerShape(24.dp))
+            .border(1.dp, AgentColors.Border, RoundedCornerShape(28.dp))
             .padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(11.dp)
@@ -139,13 +139,13 @@ private fun ActivityRail() {
 private fun RailIcon(label: String, active: Boolean) {
     Box(
         Modifier
-            .size(32.dp)
-            .clip(RoundedCornerShape(11.dp))
+            .size(48.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(if (active) AgentColors.Indigo.copy(alpha = 0.14f) else Color.Transparent)
-            .border(1.dp, if (active) AgentColors.Indigo.copy(alpha = 0.30f) else Color.Transparent, RoundedCornerShape(11.dp)),
+            .border(1.dp, if (active) AgentColors.Indigo.copy(alpha = 0.30f) else Color.Transparent, RoundedCornerShape(16.dp)),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, color = if (active) AgentColors.Indigo else AgentColors.Muted, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = if (active) AgentColors.Indigo else AgentColors.Muted, fontSize = 18.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -181,8 +181,8 @@ private fun HeroHeader(state: AgentOverlayUiState, onStartOverlay: () -> Unit) {
             Button(
                 onClick = onStartOverlay,
                 modifier = Modifier.fillMaxWidth().height(50.dp).testTag("start-overlay-button"),
-                shape = RoundedCornerShape(17.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AgentColors.Text, contentColor = Color.White)
+                shape = MaterialTheme.shapes.medium,
+                colors = ButtonDefaults.buttonColors(containerColor = AgentColors.IndigoDeep, contentColor = Color.White)
             ) { Text("Start agent bubbles", fontWeight = FontWeight.SemiBold, letterSpacing = (-0.1).sp) }
         }
     }
@@ -477,7 +477,7 @@ private fun CommandButton(text: String, onClick: () -> Unit, modifier: Modifier 
         modifier = modifier.height(46.dp),
         shape = RoundedCornerShape(14.dp),
         border = if (primary) null else BorderStroke(1.dp, AgentColors.Border),
-        colors = ButtonDefaults.buttonColors(containerColor = if (primary) AgentColors.Text else AgentColors.SurfaceHigh, contentColor = if (primary) Color.White else AgentColors.Text)
+        colors = ButtonDefaults.buttonColors(containerColor = if (primary) AgentColors.IndigoDeep else AgentColors.SurfaceHigh, contentColor = AgentColors.Text)
     ) { Text(text, fontWeight = FontWeight.SemiBold) }
 }
 

@@ -1,43 +1,43 @@
 ---
 version: alpha
-name: Agent Overlay Workbench
-description: Replit Agent inspired mobile workbench for floating Hermes agent bubbles.
+name: Agent Overlay Material Dark Workbench
+description: Material Design 3 dark-mode-first mobile workbench for floating Hermes agent bubbles.
 colors:
-  primary: "#1F2328"
-  secondary: "#5F6368"
-  tertiary: "#F26207"
-  neutral: "#F3F2ED"
-  surface: "#FAF9F4"
-  surfaceRaised: "#FFFFFF"
-  surfaceMuted: "#EDEBE3"
-  border: "#D8D6CC"
-  active: "#6C5CE7"
-  success: "#2DA44E"
-  warning: "#B7791F"
-  info: "#3B82F6"
+  primary: "#8B83FF"
+  secondary: "#72B8FF"
+  tertiary: "#FF7A1A"
+  neutral: "#07080B"
+  surface: "#101116"
+  surfaceRaised: "#22252D"
+  surfaceMuted: "#181A20"
+  border: "#343844"
+  active: "#675BE8"
+  success: "#45D483"
+  warning: "#FFC857"
+  info: "#72B8FF"
 typography:
   h1:
     fontFamily: Inter
     fontSize: 1.75rem
     fontWeight: 650
-    lineHeight: 1.05
-    letterSpacing: "-0.035em"
+    lineHeight: 1.14
+    letterSpacing: "-0.025em"
   h2:
     fontFamily: Inter
     fontSize: 1.125rem
     fontWeight: 650
-    lineHeight: 1.2
-    letterSpacing: "-0.02em"
+    lineHeight: 1.22
+    letterSpacing: "-0.01em"
   body-md:
     fontFamily: Inter
     fontSize: 0.875rem
     fontWeight: 450
-    lineHeight: 1.45
+    lineHeight: 1.43
   label:
     fontFamily: Inter
     fontSize: 0.75rem
     fontWeight: 650
-    lineHeight: 1.1
+    lineHeight: 1.33
   mono:
     fontFamily: JetBrains Mono
     fontSize: 0.75rem
@@ -45,8 +45,8 @@ typography:
     lineHeight: 1.35
 rounded:
   sm: 8px
-  md: 14px
-  lg: 20px
+  md: 16px
+  lg: 24px
   xl: 28px
   pill: 999px
 spacing:
@@ -57,13 +57,13 @@ spacing:
   xl: 24px
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
+    backgroundColor: "{colors.active}"
     textColor: "#FFFFFF"
     rounded: "{rounded.md}"
     padding: 12px
   button-secondary:
     backgroundColor: "{colors.surfaceRaised}"
-    textColor: "{colors.primary}"
+    textColor: "#F4F6FB"
     rounded: "{rounded.md}"
     padding: 12px
   agent-bubble:
@@ -73,77 +73,79 @@ components:
     size: 56px
   panel:
     backgroundColor: "{colors.surface}"
-    textColor: "{colors.primary}"
+    textColor: "#F4F6FB"
     rounded: "{rounded.xl}"
     padding: 14px
   input:
     backgroundColor: "{colors.surfaceRaised}"
-    textColor: "{colors.primary}"
+    textColor: "#F4F6FB"
     rounded: "{rounded.md}"
     padding: 12px
 ---
 
 ## Overview
 
-Agent Overlay uses a Replit-Agent-inspired workbench model: a calm cream workspace, a narrow activity rail, compact tool/status chrome, checkpoint-like agent cards, and an always-available agent composer. The product remains overlay-first: individual agents live as Messenger-style floating bubbles; the full-screen Activity exists for settings, roster, diagnostics, and command-link management.
+Agent Overlay now uses a Material Design 3 dark-mode-first workbench model: dark surfaces, explicit color roles, shape tokens, 48dp-class controls, accessible contrast, and a clear overlay-first product model. Replit remains the workflow inspiration (activity rail, agent/status cards, command-link workbench), but the Android execution follows Material 3 color, typography, shape, and touch-target conventions.
 
-Replit notes applied:
+Applied notes:
 
-- Left activity rail with icon-only destinations.
-- Top status pill showing whether the agent is resting/running.
-- Workspace tabs / chips for Preview, Database, Deployments, Git, and Console metaphors.
-- Agent cards use checkpoint/status language and compact secondary actions.
-- Composer is anchored, rounded, and low-friction.
-- Preview/settings surfaces use large calm cards with thin gray-oat borders.
+- Left activity rail with Material-style 48dp touch affordances.
+- Dark surface stack: background → panel → surface → raised surface.
+- Primary action uses active indigo container, not low-contrast gray.
+- Agent cards use checkpoint/status language with compact labels.
+- Composer is anchored, rounded, and minimum-touch-target friendly.
+- Floating overlay remains darker and higher-contrast because it sits above arbitrary apps.
 
 ## Colors
 
-- **Primary (#1F2328):** Dense ink for readable workspace text.
-- **Neutral (#F3F2ED):** Warm app chrome background, inspired by Replit's light editor shell.
-- **Surface (#FAF9F4):** Main panels and cards.
-- **Surface Raised (#FFFFFF):** Inputs and elevated preview cards.
-- **Tertiary (#F26207):** Replit-like orange accent for active/agent-specific affordances.
-- **Active (#6C5CE7):** Agent bubble identity and selected states.
-- **Border (#D8D6CC):** Soft oat border; avoid cold blue-gray dividers.
+- **Neutral (#07080B):** App background / deepest surface.
+- **Surface (#101116):** Main panels, cards, and activity rail.
+- **Surface Muted (#181A20):** Recessed transcript and workspace wells.
+- **Surface Raised (#22252D):** Inputs, selected cards, chips, and controls.
+- **Primary (#8B83FF):** Material primary accent for selected/interactive states.
+- **Active (#675BE8):** Filled primary button and active bubble identity.
+- **Tertiary (#FF7A1A):** Replit-like orange accent for agent-specific hints, never for bulk chrome.
+- **Border (#343844):** Material outline/outlineVariant style border.
 
 ## Typography
 
-Use Inter/system sans throughout. Hierarchy comes from size, weight 650 for headings/labels, and slightly negative display tracking. Use monospace only for IDs, gateway URLs, and low-level diagnostics.
+Use Inter/system sans throughout, aligned to Material 3 roles: headline for the app title, title for card headers, body for readable descriptions, label for status pills and compact controls, mono only for IDs and gateway URLs.
 
 ## Layout
 
-- Full-screen app: rail + workbench column on phones/tablets where space allows; stack cards vertically on narrow screens.
-- Overlay: keep compact, dark, and high-contrast over arbitrary apps.
-- Primary flow: bubble → agent heads → floating chat. Full-screen only via title/gear/expand.
-- Inputs should be anchored at the bottom of chat surfaces and use minimum 44px touch targets.
+- Full-screen app: Material dark workbench with activity rail + content stack.
+- Overlay: bubble → agent heads → floating chat remains the primary user journey.
+- Full-screen Activity is secondary and opens only via title/gear/expand.
+- Interactive controls should meet or exceed 48dp height where practical; compact overlay chips may be visually smaller but must sit in larger tap regions when promoted to production.
 
 ## Elevation & Depth
 
-Use border-first depth. The workbench is mostly flat with subtle raised white cards and 1px oat borders. Floating overlays may use dark panels and stronger elevation because they sit above other apps.
+Use Material 3 surface containers rather than arbitrary translucency. Elevation is represented by surface luminance steps plus 1px outline borders. Overlay panels use stronger elevation because they float above other apps.
 
 ## Shapes
 
-- Large cards: 20–28px radius.
-- Inputs/buttons: 14px radius.
-- Agent bubbles and status chips: pill/circle.
+- Small: 8–12px for rails/icons.
+- Medium: 16px for buttons/inputs.
+- Large: 24–28px for cards and floating panels.
+- Pill/circle: agent bubbles, status dots, and compact chips.
 
 ## Components
 
-- **Activity rail:** 44–52px wide, icon-only, selected item uses active accent.
-- **Status pill:** rounded command/status capsule near the top.
-- **Agent checkpoint card:** title, status, short transcript/summary, compact Chat and Changes controls.
+- **Activity rail:** 56px wide, dark surface, selected item uses primary container tint.
+- **Status pill:** high-contrast label/value chip.
+- **Agent checkpoint card:** title, ID, status, selected outline, and avatar/status dot.
 - **Floating chat:** title/status header, transcript bubbles, anchored composer, explicit ↗/⚙ full-screen affordances.
 
 ## Do's and Don'ts
 
 Do:
-- Keep the main app calm, cream, and workbench-like.
+- Prefer Material 3 color roles, typography roles, shapes, and 48dp touch-target conventions.
+- Keep the app dark-mode-first.
 - Keep agents as bubbles and floating chats by default.
-- Use checkpoint/status language instead of dashboard language.
 - Keep all full-screen transitions explicit.
 
 Don't:
-- Revert to dashboard-first UX.
-- Hide full-screen escalation behind the whole row if a title/gear/expand affordance is clearer.
-- Use pure white/black everywhere; preserve warm Replit-like surfaces.
-- Let overlay controls become low-contrast over the underlying app.
+- Revert to a light workbench unless explicitly requested.
+- Let dark surfaces collapse into pure black with no hierarchy.
+- Use orange as general decoration; reserve it for agent/Replit-flavored emphasis.
+- Hide full-screen escalation behind the whole row if title/gear/expand is clearer.
