@@ -76,36 +76,76 @@ fun AgentOverlayAppUi(
             .fillMaxSize()
             .background(
                 Brush.radialGradient(
-                    colors = listOf(Color(0xFF171A2B), AgentColors.Void, Color(0xFF030405)),
+                    colors = listOf(Color(0xFFFFFFFF), AgentColors.Void, Color(0xFFE7E4DA)),
                     radius = 1250f
                 )
             )
     ) {
-        Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            HeroHeader(state = state, onStartOverlay = onStartOverlay)
-            GatewayConfigCard(state, onGatewayUrlChanged, onApiKeyChanged, onConnect, onRefresh)
-            state.error?.let { ErrorStrip(it) }
-            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                if (maxWidth < 720.dp) {
-                    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        ThreadList(state.threads, state.selectedThreadId, onSelectThread, Modifier.weight(0.39f).fillMaxWidth())
-                        ChatPane(selectedThread, draft, { draft = it }, {
-                            onSendMessage(draft)
-                            draft = ""
-                        }, Modifier.weight(0.61f).fillMaxWidth())
-                    }
-                } else {
-                    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ThreadList(state.threads, state.selectedThreadId, onSelectThread, Modifier.weight(0.34f).fillMaxHeight())
-                        ChatPane(selectedThread, draft, { draft = it }, {
-                            onSendMessage(draft)
-                            draft = ""
-                        }, Modifier.weight(0.66f).fillMaxHeight())
+        Row(Modifier.fillMaxSize().padding(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            ActivityRail()
+            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                HeroHeader(state = state, onStartOverlay = onStartOverlay)
+                GatewayConfigCard(state, onGatewayUrlChanged, onApiKeyChanged, onConnect, onRefresh)
+                state.error?.let { ErrorStrip(it) }
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                    if (maxWidth < 720.dp) {
+                        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            ThreadList(state.threads, state.selectedThreadId, onSelectThread, Modifier.weight(0.39f).fillMaxWidth())
+                            ChatPane(selectedThread, draft, { draft = it }, {
+                                onSendMessage(draft)
+                                draft = ""
+                            }, Modifier.weight(0.61f).fillMaxWidth())
+                        }
+                    } else {
+                        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            ThreadList(state.threads, state.selectedThreadId, onSelectThread, Modifier.weight(0.34f).fillMaxHeight())
+                            ChatPane(selectedThread, draft, { draft = it }, {
+                                onSendMessage(draft)
+                                draft = ""
+                            }, Modifier.weight(0.66f).fillMaxHeight())
+                        }
                     }
                 }
             }
         }
         if (state.isLoading) LoadingPill()
+    }
+}
+
+@Composable
+private fun ActivityRail() {
+    Column(
+        Modifier
+            .width(46.dp)
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(24.dp))
+            .background(AgentColors.Surface)
+            .border(1.dp, AgentColors.Border, RoundedCornerShape(24.dp))
+            .padding(vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(11.dp)
+    ) {
+        RailIcon("⌂", active = false)
+        RailIcon("✣", active = true)
+        RailIcon("▣", active = false)
+        RailIcon("⌁", active = false)
+        RailIcon("⚙", active = false)
+        Spacer(Modifier.weight(1f))
+        RailIcon("?", active = false)
+    }
+}
+
+@Composable
+private fun RailIcon(label: String, active: Boolean) {
+    Box(
+        Modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(11.dp))
+            .background(if (active) AgentColors.Indigo.copy(alpha = 0.14f) else Color.Transparent)
+            .border(1.dp, if (active) AgentColors.Indigo.copy(alpha = 0.30f) else Color.Transparent, RoundedCornerShape(11.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = if (active) AgentColors.Indigo else AgentColors.Muted, fontSize = 16.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -142,7 +182,7 @@ private fun HeroHeader(state: AgentOverlayUiState, onStartOverlay: () -> Unit) {
                 onClick = onStartOverlay,
                 modifier = Modifier.fillMaxWidth().height(50.dp).testTag("start-overlay-button"),
                 shape = RoundedCornerShape(17.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AgentColors.Text, contentColor = Color(0xFF090A0D))
+                colors = ButtonDefaults.buttonColors(containerColor = AgentColors.Text, contentColor = Color.White)
             ) { Text("Start agent bubbles", fontWeight = FontWeight.SemiBold, letterSpacing = (-0.1).sp) }
         }
     }
@@ -153,7 +193,7 @@ private fun BubbleClusterMark() {
     Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
         Box(Modifier.size(58.dp).clip(CircleShape).background(AgentColors.Indigo.copy(alpha = 0.16f)))
         Box(Modifier.size(48.dp).clip(CircleShape).background(Brush.linearGradient(listOf(AgentColors.Indigo, AgentColors.Info))).border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape), contentAlignment = Alignment.Center) {
-            Text("LH", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text("AO", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         }
         Box(Modifier.align(Alignment.BottomEnd).size(18.dp).clip(CircleShape).background(AgentColors.Success).border(2.dp, AgentColors.Panel, CircleShape))
     }
@@ -165,8 +205,8 @@ private fun FlowHintStrip() {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.035f))
-            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(16.dp))
+            .background(AgentColors.SurfaceHigh)
+            .border(1.dp, AgentColors.Border, RoundedCornerShape(16.dp))
             .padding(horizontal = 10.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -260,8 +300,8 @@ private fun ThreadRow(thread: AgentThread, selected: Boolean, onClick: () -> Uni
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(if (selected) AgentColors.Indigo.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.032f))
-            .border(1.dp, if (selected) AgentColors.Indigo.copy(alpha = 0.62f) else Color.White.copy(alpha = 0.065f), RoundedCornerShape(18.dp))
+            .background(if (selected) AgentColors.Indigo.copy(alpha = 0.12f) else AgentColors.SurfaceHigh)
+            .border(1.dp, if (selected) AgentColors.Indigo.copy(alpha = 0.50f) else AgentColors.Border, RoundedCornerShape(18.dp))
             .clickable { onClick() }
             .padding(11.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -311,8 +351,8 @@ private fun ChatPane(
                     .weight(1f)
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color.Black.copy(alpha = 0.20f))
-                    .border(1.dp, Color.White.copy(alpha = 0.055f), RoundedCornerShape(20.dp))
+                    .background(AgentColors.Surface)
+                    .border(1.dp, AgentColors.Border, RoundedCornerShape(20.dp))
                     .padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -347,8 +387,8 @@ private fun ChatHeader(thread: AgentThread?) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color.White.copy(alpha = 0.035f))
-            .border(1.dp, Color.White.copy(alpha = 0.065f), RoundedCornerShape(18.dp))
+            .background(AgentColors.SurfaceHigh)
+            .border(1.dp, AgentColors.Border, RoundedCornerShape(18.dp))
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -378,8 +418,8 @@ private fun MessageBubble(message: ChatMessage) {
                 Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(if (isUser) AgentColors.Indigo.copy(alpha = 0.24f) else Color.White.copy(alpha = 0.048f))
-                    .border(1.dp, if (isUser) AgentColors.Indigo.copy(alpha = 0.46f) else Color.White.copy(alpha = 0.065f), RoundedCornerShape(18.dp))
+                    .background(if (isUser) AgentColors.Indigo.copy(alpha = 0.14f) else AgentColors.SurfaceHigh)
+                    .border(1.dp, if (isUser) AgentColors.Indigo.copy(alpha = 0.42f) else AgentColors.Border, RoundedCornerShape(18.dp))
                     .padding(12.dp)
             ) {
                 Text(if (isUser) "You" else if (isTool) "Gateway" else "Hermes", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -421,7 +461,7 @@ private fun LoadingPill() {
 @Composable
 private fun StatPill(label: String, value: String) {
     Row(
-        Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White.copy(alpha = 0.045f)).border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(999.dp)).padding(horizontal = 10.dp, vertical = 7.dp),
+        Modifier.clip(RoundedCornerShape(999.dp)).background(AgentColors.SurfaceHigh).border(1.dp, AgentColors.Border, RoundedCornerShape(999.dp)).padding(horizontal = 10.dp, vertical = 7.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -436,8 +476,8 @@ private fun CommandButton(text: String, onClick: () -> Unit, modifier: Modifier 
         onClick = onClick,
         modifier = modifier.height(46.dp),
         shape = RoundedCornerShape(14.dp),
-        border = if (primary) null else BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-        colors = ButtonDefaults.buttonColors(containerColor = if (primary) AgentColors.IndigoDeep else Color.White.copy(alpha = 0.045f), contentColor = Color.White)
+        border = if (primary) null else BorderStroke(1.dp, AgentColors.Border),
+        colors = ButtonDefaults.buttonColors(containerColor = if (primary) AgentColors.Text else AgentColors.SurfaceHigh, contentColor = if (primary) Color.White else AgentColors.Text)
     ) { Text(text, fontWeight = FontWeight.SemiBold) }
 }
 
@@ -446,8 +486,8 @@ private fun GlassPanel(modifier: Modifier = Modifier, content: @Composable () ->
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(25.dp),
-        colors = CardDefaults.cardColors(containerColor = AgentColors.Panel.copy(alpha = 0.90f)),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.085f)),
+        colors = CardDefaults.cardColors(containerColor = AgentColors.Panel),
+        border = BorderStroke(1.dp, AgentColors.Border),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) { content() }
 }
@@ -463,10 +503,10 @@ private fun ErrorStrip(message: String) {
 private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedTextColor = AgentColors.Text,
     unfocusedTextColor = AgentColors.Text,
-    focusedContainerColor = Color.White.copy(alpha = 0.035f),
-    unfocusedContainerColor = Color.White.copy(alpha = 0.025f),
+    focusedContainerColor = AgentColors.SurfaceHigh,
+    unfocusedContainerColor = AgentColors.SurfaceHigh,
     focusedBorderColor = AgentColors.Indigo,
-    unfocusedBorderColor = Color.White.copy(alpha = 0.08f),
+    unfocusedBorderColor = AgentColors.Border,
     focusedLabelColor = AgentColors.Info,
     unfocusedLabelColor = AgentColors.Muted,
     focusedSupportingTextColor = AgentColors.Subtle,
