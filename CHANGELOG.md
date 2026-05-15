@@ -1,0 +1,16 @@
+# Changelog
+
+## v0.1.1 — 2026-05-15
+
+### Added
+- Phone automation tool-call contract for Hermes chat completions, including snapshot, accessibility tree, OCR/vision snapshot, tap, type, swipe, back, home, and recents tools.
+- On-device slash-command execution path for `/phone`, `/tap`, `/type`, `/swipe`, `/back`, `/home`, and `/recents`.
+- Quiet agentic chat UX with model switching, contextual `/commands`, activity disclosure, and overlay status affordances.
+- Mock Hermes gateway coverage for OpenAI-style `tool_calls` responses.
+
+### Changed
+- Incremented Android version to `0.1.1` / `versionCode 2`.
+- Updated Maestro smoke and overlay flows for the latest chat and phone-control surfaces.
+
+### Validation
+- `ANDROID_HOME=/home/mikeb/android-sdk ./gradlew --no-daemon --rerun-tasks :app:testDebugUnitTest :app:assembleDebug`
