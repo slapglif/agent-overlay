@@ -74,6 +74,13 @@ import com.slapglif.agentoverlay.model.PhoneAutomationAction
 import com.slapglif.agentoverlay.model.PhoneScreenSnapshot
 import com.slapglif.agentoverlay.ui.theme.AgentColors
 
+private enum class AppSection(val label: String, val hint: String) {
+    Chat("Chat", "Talk"),
+    Agents("Agents", "Sessions"),
+    Phone("Phone", "Inspect"),
+    Settings("Settings", "Gateway")
+}
+
 @Composable
 fun AgentOverlayAppUi(
     state: AgentOverlayUiState,
@@ -92,6 +99,7 @@ fun AgentOverlayAppUi(
     onPerformPhoneAction: (PhoneAutomationAction) -> Unit
 ) {
     var draft by remember { mutableStateOf("") }
+    var section by remember { mutableStateOf(AppSection.Chat) }
     val selectedThread = state.threads.firstOrNull { it.id == state.selectedThreadId }
 
     Box(
@@ -99,78 +107,321 @@ fun AgentOverlayAppUi(
             .fillMaxSize()
             .background(
                 Brush.radialGradient(
-                    colors = listOf(Color(0xFF1B1C27), AgentColors.Void, Color(0xFF040508)),
-                    radius = 1250f
+                    colors = listOf(Color(0xFF171A24), AgentColors.Void, Color(0xFF030408)),
+                    radius = 1450f
                 )
             )
     ) {
-        Row(Modifier.fillMaxSize().padding(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ActivityRail()
-            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                HeroHeader(state = state, onStartOverlay = onStartOverlay, onConnect = onConnect)
-                if (state.connection !is GatewayConnection.Connected) {
-                    GatewayConfigCard(state, onGatewayUrlChanged, onApiKeyChanged, onConnect, onRefresh)
-                }
-                state.error?.let { ErrorStrip(it) }
-                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                    if (maxWidth < 720.dp) {
-                        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            ThreadList(state.threads, state.selectedThreadId, onSelectThread, Modifier.weight(0.08f).fillMaxWidth())
-                            ChatPane(selectedThread, draft, { draft = it }, {
-                                onSendMessage(draft)
-                                draft = ""
-                            }, state, onSelectModel, onReasoningModeChanged, onToolCallsToggled, onCommandPassthroughToggled, onInspectPhone, onPerformPhoneAction, Modifier.weight(0.92f).fillMaxWidth())
-                        }
-                    } else {
-                        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            ThreadList(state.threads, state.selectedThreadId, onSelectThread, Modifier.weight(0.34f).fillMaxHeight())
-                            ChatPane(selectedThread, draft, { draft = it }, {
-                                onSendMessage(draft)
-                                draft = ""
-                            }, state, onSelectModel, onReasoningModeChanged, onToolCallsToggled, onCommandPassthroughToggled, onInspectPhone, onPerformPhoneAction, Modifier.weight(0.66f).fillMaxHeight())
-                        }
-                    }
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            AppTopBar(
+                section = section,
+                state = state,
+                onStartOverlay = onStartOverlay,
+                onConnect = onConnect,
+                onOpenSettings = { section = AppSection.Settings }
+            )
+            state.error?.let { ErrorStrip(it) }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                when (section) {
+                    AppSection.Chat -> ChatScreen(
+                        selectedThread = selectedThread,
+                        draft = draft,
+                        onDraftChanged = { draft = it },
+                        onSend = {
+                            onSendMessage(draft)
+                            draft = ""
+                        },
+                        state = state,
+                        onSelectModel = onSelectModel,
+                        onReasoningModeChanged = onReasoningModeChanged,
+                        onToolCallsToggled = onToolCallsToggled,
+                        onCommandPassthroughToggled = onCommandPassthroughToggled,
+                        onInspectPhone = onInspectPhone,
+                        onPerformPhoneAction = onPerformPhoneAction,
+                        onOpenSettings = { section = AppSection.Settings },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    AppSection.Agents -> AgentsScreen(
+                        threads = state.threads,
+                        selectedId = state.selectedThreadId,
+                        onSelectThread = { id ->
+                            onSelectThread(id)
+                            section = AppSection.Chat
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    AppSection.Phone -> PhoneScreen(
+                        state = state,
+                        onInspectPhone = onInspectPhone,
+                        onPerformPhoneAction = onPerformPhoneAction,
+                        onOpenChat = { section = AppSection.Chat },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    AppSection.Settings -> SettingsScreen(
+                        state = state,
+                        onGatewayUrlChanged = onGatewayUrlChanged,
+                        onApiKeyChanged = onApiKeyChanged,
+                        onConnect = onConnect,
+                        onRefresh = onRefresh,
+                        onStartOverlay = onStartOverlay,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
+            BottomNav(section = section, onSectionChanged = { section = it })
         }
         if (state.isLoading) LoadingPill()
     }
 }
 
 @Composable
-private fun ActivityRail() {
-    Column(
-        Modifier
-            .width(56.dp)
-            .fillMaxHeight()
-            .clip(RoundedCornerShape(28.dp))
-            .background(AgentColors.Surface)
-            .border(1.dp, AgentColors.Border, RoundedCornerShape(28.dp))
-            .padding(vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(11.dp)
-    ) {
-        RailIcon("⌂", active = false)
-        RailIcon("✣", active = true)
-        RailIcon("▣", active = false)
-        RailIcon("⌁", active = false)
-        RailIcon("⚙", active = false)
-        Spacer(Modifier.weight(1f))
-        RailIcon("?", active = false)
+private fun AppTopBar(
+    section: AppSection,
+    state: AgentOverlayUiState,
+    onStartOverlay: () -> Unit,
+    onConnect: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    GlassPanel {
+        Row(
+            Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(Modifier.size(42.dp).clip(CircleShape).background(Brush.linearGradient(listOf(AgentColors.Indigo, AgentColors.Info))).border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape), contentAlignment = Alignment.Center) {
+                Text("AO", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            }
+            Column(Modifier.weight(1f)) {
+                Text("Agent Overlay", color = AgentColors.Subtle, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, maxLines = 1)
+                Text(section.label, color = AgentColors.Text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.4).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(topBarSubtitle(section, state), color = AgentColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            MiniStatusDot(state.connection)
+            Text(
+                "Float",
+                color = AgentColors.Text,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(AgentColors.SurfaceHigh)
+                    .border(1.dp, AgentColors.Border, RoundedCornerShape(999.dp))
+                    .clickable { onStartOverlay() }
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                    .testTag("start-overlay-button")
+            )
+            if (state.connection !is GatewayConnection.Connected) {
+                Text(
+                    "Connect",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(AgentColors.IndigoDeep)
+                        .clickable { onConnect() }
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                        .testTag("hero-connect-button")
+                )
+            }
+        }
+    }
+}
+
+private fun topBarSubtitle(section: AppSection, state: AgentOverlayUiState): String = when (section) {
+    AppSection.Chat -> if (state.isLoading) "Hermes is working" else "Ready · ${friendlyModel(state.chatOptions.modelId)}"
+    AppSection.Agents -> "${state.threads.size.coerceAtLeast(1)} sessions · tap one to resume"
+    AppSection.Phone -> state.phoneSnapshot?.let { "${it.packageName ?: "active app"} · ${it.elements.size} refs" } ?: "Inspect app UI and run phone tools"
+    AppSection.Settings -> connectionText(state.connection)
+}
+
+@Composable
+private fun BottomNav(section: AppSection, onSectionChanged: (AppSection) -> Unit) {
+    GlassPanel {
+        Row(
+            Modifier.padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AppSection.values().forEach { item ->
+                val active = item == section
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(if (active) AgentColors.Indigo.copy(alpha = 0.16f) else Color.Transparent)
+                        .border(1.dp, if (active) AgentColors.Indigo.copy(alpha = 0.34f) else Color.Transparent, RoundedCornerShape(18.dp))
+                        .clickable { onSectionChanged(item) }
+                        .padding(vertical = 9.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(item.label, color = if (active) AgentColors.Text else AgentColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text(item.hint, color = if (active) AgentColors.Info else AgentColors.Subtle, fontSize = 10.sp, maxLines = 1)
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun RailIcon(label: String, active: Boolean) {
-    Box(
-        Modifier
-            .size(48.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (active) AgentColors.Indigo.copy(alpha = 0.14f) else Color.Transparent)
-            .border(1.dp, if (active) AgentColors.Indigo.copy(alpha = 0.30f) else Color.Transparent, RoundedCornerShape(16.dp)),
-        contentAlignment = Alignment.Center
+private fun ChatScreen(
+    selectedThread: AgentThread?,
+    draft: String,
+    onDraftChanged: (String) -> Unit,
+    onSend: () -> Unit,
+    state: AgentOverlayUiState,
+    onSelectModel: (String) -> Unit,
+    onReasoningModeChanged: (ChatOptions.ReasoningMode) -> Unit,
+    onToolCallsToggled: (Boolean) -> Unit,
+    onCommandPassthroughToggled: (Boolean) -> Unit,
+    onInspectPhone: () -> Unit,
+    onPerformPhoneAction: (PhoneAutomationAction) -> Unit,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (state.connection !is GatewayConnection.Connected) {
+            QuickSetupCard(onOpenSettings = onOpenSettings)
+        }
+        ChatPane(
+            thread = selectedThread,
+            draft = draft,
+            onDraftChanged = onDraftChanged,
+            onSend = onSend,
+            state = state,
+            onSelectModel = onSelectModel,
+            onReasoningModeChanged = onReasoningModeChanged,
+            onToolCallsToggled = onToolCallsToggled,
+            onCommandPassthroughToggled = onCommandPassthroughToggled,
+            onInspectPhone = onInspectPhone,
+            onPerformPhoneAction = onPerformPhoneAction,
+            modifier = Modifier.weight(1f).fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun QuickSetupCard(onOpenSettings: () -> Unit) {
+    GlassPanel {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text("Connect a Hermes gateway", color = AgentColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text("Set URL and API key in Settings when you are ready.", color = AgentColors.Muted, fontSize = 12.sp)
+            }
+            Text("Settings", color = AgentColors.Info, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(AgentColors.SurfaceHigh).clickable { onOpenSettings() }.padding(horizontal = 10.dp, vertical = 8.dp))
+        }
+    }
+}
+
+@Composable
+private fun AgentsScreen(threads: List<AgentThread>, selectedId: String?, onSelectThread: (String) -> Unit, modifier: Modifier = Modifier) {
+    GlassPanel(modifier.testTag("agents-list")) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Agents", color = AgentColors.Text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+            Text("Choose a session. Chat opens cleanly without dashboard clutter.", color = AgentColors.Muted, fontSize = 13.sp)
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.fillMaxSize()) {
+                items(threads.ifEmpty { listOf(AgentThread("mobile-overlay", "Mobile overlay", AgentThread.Status.Idle)) }) { thread ->
+                    ThreadRow(thread, selected = thread.id == selectedId, onClick = { onSelectThread(thread.id) })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhoneScreen(
+    state: AgentOverlayUiState,
+    onInspectPhone: () -> Unit,
+    onPerformPhoneAction: (PhoneAutomationAction) -> Unit,
+    onOpenChat: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    GlassPanel(modifier.testTag("phone-screen")) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("Phone tools", color = AgentColors.Text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Inspect visible UI, then let Hermes tap/type/swipe by ref.", color = AgentColors.Muted, fontSize = 13.sp)
+                }
+                CommandButton("Inspect", onInspectPhone, Modifier.width(108.dp).testTag("phone-inspect-button"), primary = true)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CommandButton("Back", { onPerformPhoneAction(PhoneAutomationAction.Back) }, Modifier.weight(1f).testTag("phone-back-button"))
+                CommandButton("Home", { onPerformPhoneAction(PhoneAutomationAction.Home) }, Modifier.weight(1f).testTag("phone-home-button"))
+                CommandButton("Recents", { onPerformPhoneAction(PhoneAutomationAction.Recents) }, Modifier.weight(1f).testTag("phone-recents-button"))
+            }
+            state.lastPhoneResult?.let { result ->
+                ErrorOrResultStrip(result.message, ok = result.ok)
+            }
+            state.phoneSnapshot?.let { snapshot ->
+                PhoneAutomationStrip(
+                    snapshot = snapshot,
+                    onInspectPhone = onInspectPhone,
+                    onBack = { onPerformPhoneAction(PhoneAutomationAction.Back) },
+                    onHome = { onPerformPhoneAction(PhoneAutomationAction.Home) },
+                    onRecents = { onPerformPhoneAction(PhoneAutomationAction.Recents) },
+                    onTapRef = { ref -> onPerformPhoneAction(PhoneAutomationAction.TapRef(ref)) }
+                )
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    items(snapshot.elements.take(40)) { element ->
+                        RefRow(element.ref, element.text.ifBlank { element.contentDescription.orEmpty() }, onTap = { onPerformPhoneAction(PhoneAutomationAction.TapRef(element.ref)) })
+                    }
+                }
+            } ?: Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Text("No phone snapshot yet", color = AgentColors.Text, fontWeight = FontWeight.SemiBold)
+                Text("Tap Inspect, or type /phone in chat.", color = AgentColors.Muted, fontSize = 13.sp)
+                Spacer(Modifier.height(10.dp))
+                CommandButton("Open chat", onOpenChat, Modifier.width(150.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun RefRow(ref: String, text: String, onTap: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(AgentColors.SurfaceHigh).border(1.dp, AgentColors.Border, RoundedCornerShape(16.dp)).clickable { onTap() }.padding(11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(label, color = if (active) AgentColors.Indigo else AgentColors.Muted, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(ref, color = AgentColors.Info, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+        Text(text.ifBlank { "Untitled element" }, color = AgentColors.Text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text("Tap", color = AgentColors.Subtle, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun ErrorOrResultStrip(message: String, ok: Boolean) {
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background((if (ok) AgentColors.Success else AgentColors.RayRed).copy(alpha = 0.10f)).border(1.dp, (if (ok) AgentColors.Success else AgentColors.RayRed).copy(alpha = 0.26f), RoundedCornerShape(16.dp)).padding(12.dp)) {
+        Text(message, color = if (ok) AgentColors.Success else AgentColors.RayRed, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun SettingsScreen(
+    state: AgentOverlayUiState,
+    onGatewayUrlChanged: (String) -> Unit,
+    onApiKeyChanged: (String) -> Unit,
+    onConnect: () -> Unit,
+    onRefresh: () -> Unit,
+    onStartOverlay: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        GatewayConfigCard(state, onGatewayUrlChanged, onApiKeyChanged, onConnect, onRefresh)
+        GlassPanel {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Overlay", color = AgentColors.Text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text("Launch the floating command button after Android overlay permission is granted.", color = AgentColors.Muted, fontSize = 13.sp)
+                CommandButton("Float", onStartOverlay, Modifier.fillMaxWidth().testTag("start-overlay-button"), primary = true)
+            }
+        }
     }
 }
 

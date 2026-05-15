@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.1.3 — 2026-05-15
+
+### Changed
+- Replaced the full-screen dashboard/sidebar with separate mobile-native Chat, Agents, Phone, and Settings screens.
+- Promoted bottom navigation as the primary full-screen structure while keeping Chat as the first-class landing surface.
+- Moved gateway setup into Settings, session selection into Agents, and phone inspection/actions into Phone.
+- Updated smoke validation for the new screen split and bottom navigation labels.
+
+### Validation
+- `ANDROID_HOME=/home/mikeb/android-sdk ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug`
+
 ## v0.1.2 — 2026-05-15
 
 ### Changed

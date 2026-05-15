@@ -5,7 +5,10 @@ appId: com.slapglif.agentoverlay.debug
 - extendedWaitUntil:
     visible: "Agent Overlay"
     timeout: 5000
-- assertVisible: "Tiny command button → quick actions → agent view"
+- assertVisible: "Chat"
+- assertVisible: "Agents"
+- assertVisible: "Phone"
+- assertVisible: "Settings"
 - tapOn: "Connect"
 - extendedWaitUntil:
     visible: "Live Hermes run"

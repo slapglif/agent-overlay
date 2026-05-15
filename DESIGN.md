@@ -89,7 +89,7 @@ Agent Overlay now uses a Material Design 3 dark-mode-first workbench model with 
 
 Applied notes:
 
-- Left activity rail with Material-style 48dp touch affordances.
+- Full-screen Activity uses separate Chat, Agents, Phone, and Settings screens with bottom navigation; no permanent sidebar/rail on phone.
 - Dark surface stack: background → panel → surface → raised surface.
 - Primary action uses active indigo container, not low-contrast gray.
 - Agent cards use checkpoint/status language with compact labels.
@@ -100,7 +100,7 @@ Applied notes:
 ## Colors
 
 - **Neutral (#07080B):** App background / deepest surface.
-- **Surface (#101116):** Main panels, cards, and activity rail.
+- **Surface (#101116):** Main panels, cards, bottom navigation, and overlay trays.
 - **Surface Muted (#181A20):** Recessed transcript and workspace wells.
 - **Surface Raised (#22252D):** Inputs, selected cards, chips, and controls.
 - **Primary (#8B83FF):** Material primary accent for selected/interactive states.
@@ -114,7 +114,7 @@ Use Inter/system sans throughout, aligned to Material 3 roles: headline for the 
 
 ## Layout
 
-- Full-screen app: Material dark workbench with activity rail + content stack.
+- Full-screen app: mobile-native screen stack with bottom navigation: Chat first, Agents/session list, Phone tools, Settings/gateway.
 - Overlay: command icon → attached quick-action tray → agent card list or quick section → selected agent view remains the primary user journey.
 - Full-screen Activity is secondary and opens only via title/gear/expand.
 - Interactive controls should meet or exceed 48dp height where practical; compact overlay chips may be visually smaller but must sit in larger tap regions when promoted to production.
@@ -132,7 +132,7 @@ Use Material 3 surface containers rather than arbitrary translucency. Elevation 
 
 ## Components
 
-- **Activity rail:** 56px wide, dark surface, selected item uses primary container tint.
+- **Bottom navigation:** four explicit destinations — Chat, Agents, Phone, Settings — with selected primary container tint and no sidebar on phone.
 - **Status pill:** high-contrast label/value chip.
 - **Floating command button:** one small circular always-on-top affordance with a status dot; first tap unfolds controls rather than opening a large panel immediately.
 - **Quick-action tray:** compact attached list with obvious Monica/Messenger-style rows for Live chat, Agents, Lists, Phone tools, and Settings.
