@@ -15,8 +15,22 @@ appId: com.slapglif.agentoverlay.debug
     visible: "Ready · Auto"
     timeout: 5000
 - assertVisible: "Hermes can reason, use tools, and run commands when needed"
+- tapOn: "Hermes can reason, use tools, and run commands when needed"
+- assertVisible: "Type / to open the Hermes command palette"
+- tapOn: "Hermes can reason, use tools, and run commands when needed"
 - assertVisible: "Ask Hermes…"
 - tapOn: "Ask Hermes…"
 - inputText: "/"
 - assertVisible: "Hermes commands"
 - assertVisible: "/commands"
+- eraseText
+- inputText: "status check from Android"
+- pressKey: BACK
+- tapOn: "Send message"
+- extendedWaitUntil:
+    visible: "Mock Hermes acknowledged: status check from Android phone tools armed"
+    timeout: 10000
+- tapOn: "Open chat tools"
+- assertVisible: "Inspect phone"
+- tapOn: "Inspect phone"
+- assertVisible: "Phone automation is not enabled. Enable Agent Overlay Control in Android Accessibility settings."

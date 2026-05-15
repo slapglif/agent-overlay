@@ -12,6 +12,7 @@ import com.slapglif.agentoverlay.model.AgentThread
 import com.slapglif.agentoverlay.model.ChatMessage
 import com.slapglif.agentoverlay.model.ChatOptions
 import com.slapglif.agentoverlay.model.GatewayConnection
+import com.slapglif.agentoverlay.phone.PhoneAutomationController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel() {
+    private val phoneAutomation = PhoneAutomationController()
     private val _state = MutableStateFlow(AgentOverlayUiState())
     val state: StateFlow<AgentOverlayUiState> = _state.asStateFlow()
 
@@ -94,6 +96,9 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
         val threadId = _state.value.selectedThreadId ?: "mobile-overlay"
         if (text.isBlank()) return@launch
         val options = _state.value.chatOptions
+        val phoneContext = phoneAutomation.currentSnapshot()?.let {
+            "\n\nCurrent phone context for optional phone tools:\n" + it.packageName + " " + it.width + "x" + it.height + " elements=" + it.elements.size
+        }.orEmpty()
         _state.update { current ->
             current.copy(
                 threads = current.threads.upsertMessage(threadId, ChatMessage.User(text)),
@@ -101,7 +106,7 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
                 error = null
             )
         }
-        runCatching { repository.sendMessage(threadId, text, options) }
+        runCatching { repository.sendMessage(threadId, text + phoneContext, options) }
             .onSuccess { response ->
                 _state.update { current ->
                     current.copy(
@@ -111,6 +116,24 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
                 }
             }
             .onFailure { err -> _state.update { it.copy(isLoading = false, error = err.message) } }
+    }
+
+    fun inspectPhone() {
+        val threadId = _state.value.selectedThreadId ?: "mobile-overlay"
+        val result = phoneAutomation.inspect()
+        _state.update { current ->
+            current.copy(
+                threads = current.threads.upsertMessage(
+                    threadId,
+                    ChatMessage.Tool(
+                        text = result.message,
+                        toolName = result.action,
+                        bounds = result.snapshot?.elements?.map { it.bounds }.orEmpty()
+                    )
+                ),
+                error = if (result.ok) null else result.message
+            )
+        }
     }
 
     companion object {

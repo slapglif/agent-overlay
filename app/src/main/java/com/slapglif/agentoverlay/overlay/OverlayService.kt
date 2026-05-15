@@ -16,6 +16,7 @@ import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.EditText
@@ -32,6 +33,9 @@ class OverlayService : Service() {
     private var overlayView: View? = null
     private var mode = OverlayMode.Bubble
     private var selectedAgent = AGENTS.first()
+    private val floatingMessages = mutableListOf(
+        "Hermes" to "Standing by in Live Hermes run. Ask normally; I’ll reason, use tools, or run commands when needed."
+    )
 
     override fun onCreate() {
         super.onCreate()
@@ -59,7 +63,11 @@ class OverlayService : Service() {
     }
 
     private fun renderOverlay(params: WindowManager.LayoutParams) {
-        overlayView?.let { runCatching { windowManager.removeView(it) } }
+        overlayView?.let { old ->
+            old.animate().alpha(0f).scaleX(0.96f).scaleY(0.96f).setDuration(90).withEndAction {
+                runCatching { windowManager.removeView(old) }
+            }.start()
+        }
         params.flags = if (mode == OverlayMode.Chat) {
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         } else {
@@ -70,6 +78,7 @@ class OverlayService : Service() {
             OverlayMode.Tray -> actionTray(params)
             OverlayMode.AgentList -> agentCardList(params)
             OverlayMode.Chat -> chatWindow(params)
+            OverlayMode.Automation -> automationWindow(params)
         }
         view.alpha = 0f
         view.scaleX = if (mode == OverlayMode.Bubble) 0.78f else 0.88f
@@ -153,6 +162,10 @@ class OverlayService : Service() {
                 mode = OverlayMode.AgentList
                 renderOverlay(params)
             })
+            addView(trayRow("⌖", "Phone tools", "Inspect, tap, type, swipe", SUCCESS) {
+                mode = OverlayMode.Automation
+                renderOverlay(params)
+            })
             addView(trayRow("⚙", "Settings", "Gateway and overlay controls", MUTED) { openMainActivity() })
         }, LinearLayout.LayoutParams(dp(248), LinearLayout.LayoutParams.WRAP_CONTENT))
     }
@@ -218,27 +231,61 @@ class OverlayService : Service() {
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(10), dp(10), dp(10), dp(10))
-                addView(message("Hermes", "Standing by in ${selectedAgent.title}. Ask normally; I’ll reason, use tools, or run commands when needed."))
-                addView(message("You", "status check", alignEnd = true))
-                addView(message("Gateway", "Mock Hermes acknowledged: status check"))
+                floatingMessages.forEach { (sender, body) ->
+                    addView(message(sender, body, alignEnd = sender == "You"))
+                }
             })
         }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        lateinit var input: EditText
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(10), 0, 0)
-            addView(EditText(context).apply {
+            input = EditText(context).apply {
                 hint = "Message ${selectedAgent.shortName} or /commands"
                 textSize = 14f
                 minHeight = dp(46)
-                setSingleLine(true)
+                maxLines = 3
+                setSingleLine(false)
                 setTextColor(TEXT)
                 setHintTextColor(SUBTLE)
                 background = rounded(Color.argb(26, 255, 255, 255), 18f, Color.argb(28, 255, 255, 255))
                 setPadding(dp(12), 0, dp(12), 0)
-            }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { rightMargin = dp(8) })
-            addView(actionChip("Send", wide = true) { })
+            }
+            addView(input, LinearLayout.LayoutParams(0, dp(48), 1f).apply { rightMargin = dp(8) })
+            addView(actionChip("Send", wide = true) {
+                val text = input.text?.toString()?.trim().orEmpty()
+                if (text.isNotEmpty()) {
+                    floatingMessages += "You" to text
+                    floatingMessages += "Gateway" to "Queued for Hermes gateway: $text"
+                    input.text?.clear()
+                    renderOverlay(params)
+                }
+            })
         })
+    }
+
+    private fun automationWindow(params: WindowManager.LayoutParams): LinearLayout = panel(340, 360).apply {
+        contentDescription = "Phone automation tools"
+        addView(hoverControls(params, title = "phone tools"))
+        addView(TextView(context).apply {
+            text = "Phone automation"
+            textSize = 21f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(TEXT)
+            setPadding(0, dp(12), 0, dp(4))
+        })
+        addView(TextView(context).apply {
+            text = "RustDesk-style local control plane: accessibility tree, bounding boxes, tap/type/swipe, and future OCR/vision frames."
+            textSize = 13f
+            setTextColor(MUTED)
+            setPadding(0, 0, 0, dp(10))
+        })
+        addView(toolRow("phone.snapshot", "Current app, screen size, semantic refs"))
+        addView(toolRow("phone.tap", "Tap by coordinate or ref, e.g. p12"))
+        addView(toolRow("phone.type", "Type into focused/editable fields"))
+        addView(toolRow("phone.swipe", "Scroll or gesture with start/end bounds"))
+        addView(actionText("Open full phone tool console", INDIGO) { openMainActivity() })
     }
 
     private fun activityRibbon(): LinearLayout = LinearLayout(this).apply {
@@ -291,6 +338,24 @@ class OverlayService : Service() {
             mode = OverlayMode.Bubble
             renderOverlay(params)
         })
+    }
+
+    private fun toolRow(name: String, subtitle: String): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        background = rounded(Color.argb(18, 255, 255, 255), 16f, Color.argb(24, 255, 255, 255))
+        setPadding(dp(10), dp(8), dp(10), dp(8))
+        addView(TextView(context).apply {
+            text = name
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(INFO)
+        })
+        addView(TextView(context).apply {
+            text = subtitle
+            textSize = 11f
+            setTextColor(MUTED)
+        })
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8) }
     }
 
     private fun trayRow(icon: String, title: String, subtitle: String, color: Int, onClick: () -> Unit): LinearLayout = LinearLayout(this).apply {
@@ -502,7 +567,7 @@ class OverlayService : Service() {
     }
 }
 
-private enum class OverlayMode { Bubble, Tray, AgentList, Chat }
+private enum class OverlayMode { Bubble, Tray, AgentList, Chat, Automation }
 
 private data class OverlayAgent(
     val id: String,
@@ -525,6 +590,7 @@ private class DraggableTouchListener(
     private var initialTouchX = 0f
     private var initialTouchY = 0f
     private var moved = false
+    private val touchSlop = ViewConfiguration.get(view.context).scaledTouchSlop
 
     override fun onTouch(v: View, event: MotionEvent): Boolean {
         when (event.action) {
@@ -539,11 +605,14 @@ private class DraggableTouchListener(
             MotionEvent.ACTION_MOVE -> {
                 val dx = (event.rawX - initialTouchX).toInt()
                 val dy = (event.rawY - initialTouchY).toInt()
-                moved = moved || kotlin.math.abs(dx) > 8 || kotlin.math.abs(dy) > 8
-                params.x = initialX + dx
-                params.y = initialY + dy
-                windowManager.updateViewLayout(view, params)
-                return true
+                moved = moved || kotlin.math.abs(dx) > touchSlop || kotlin.math.abs(dy) > touchSlop
+                if (moved) {
+                    val metrics = view.resources.displayMetrics
+                    params.x = (initialX + dx).coerceIn(0, (metrics.widthPixels - view.width).coerceAtLeast(0))
+                    params.y = (initialY + dy).coerceIn(0, (metrics.heightPixels - view.height).coerceAtLeast(0))
+                    windowManager.updateViewLayout(view, params)
+                }
+                return moved
             }
             MotionEvent.ACTION_UP -> return moved
         }

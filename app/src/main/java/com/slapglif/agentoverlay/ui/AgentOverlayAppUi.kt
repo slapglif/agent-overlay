@@ -1,5 +1,11 @@
 package com.slapglif.agentoverlay.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -49,9 +55,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,7 +85,8 @@ fun AgentOverlayAppUi(
     onSelectModel: (String) -> Unit,
     onReasoningModeChanged: (ChatOptions.ReasoningMode) -> Unit,
     onToolCallsToggled: (Boolean) -> Unit,
-    onCommandPassthroughToggled: (Boolean) -> Unit
+    onCommandPassthroughToggled: (Boolean) -> Unit,
+    onInspectPhone: () -> Unit
 ) {
     var draft by remember { mutableStateOf("") }
     val selectedThread = state.threads.firstOrNull { it.id == state.selectedThreadId }
@@ -103,7 +114,7 @@ fun AgentOverlayAppUi(
                             ChatPane(selectedThread, draft, { draft = it }, {
                                 onSendMessage(draft)
                                 draft = ""
-                            }, state, onSelectModel, onReasoningModeChanged, onToolCallsToggled, onCommandPassthroughToggled, Modifier.weight(0.61f).fillMaxWidth())
+                            }, state, onSelectModel, onReasoningModeChanged, onToolCallsToggled, onCommandPassthroughToggled, onInspectPhone, Modifier.weight(0.61f).fillMaxWidth())
                         }
                     } else {
                         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -111,7 +122,7 @@ fun AgentOverlayAppUi(
                             ChatPane(selectedThread, draft, { draft = it }, {
                                 onSendMessage(draft)
                                 draft = ""
-                            }, state, onSelectModel, onReasoningModeChanged, onToolCallsToggled, onCommandPassthroughToggled, Modifier.weight(0.66f).fillMaxHeight())
+                            }, state, onSelectModel, onReasoningModeChanged, onToolCallsToggled, onCommandPassthroughToggled, onInspectPhone, Modifier.weight(0.66f).fillMaxHeight())
                         }
                     }
                 }
@@ -305,12 +316,14 @@ private fun ThreadList(threads: List<AgentThread>, selectedId: String?, onSelect
 @Composable
 private fun ThreadRow(thread: AgentThread, selected: Boolean, onClick: () -> Unit) {
     val statusColor = statusColor(thread.status)
+    val bg by animateColorAsState(if (selected) AgentColors.Indigo.copy(alpha = 0.12f) else AgentColors.SurfaceHigh, label = "thread-bg")
+    val stroke by animateColorAsState(if (selected) AgentColors.Indigo.copy(alpha = 0.50f) else AgentColors.Border, label = "thread-border")
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(if (selected) AgentColors.Indigo.copy(alpha = 0.12f) else AgentColors.SurfaceHigh)
-            .border(1.dp, if (selected) AgentColors.Indigo.copy(alpha = 0.50f) else AgentColors.Border, RoundedCornerShape(18.dp))
+            .background(bg)
+            .border(1.dp, stroke, RoundedCornerShape(18.dp))
             .clickable { onClick() }
             .padding(11.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -348,6 +361,7 @@ private fun ChatPane(
     onReasoningModeChanged: (ChatOptions.ReasoningMode) -> Unit,
     onToolCallsToggled: (Boolean) -> Unit,
     onCommandPassthroughToggled: (Boolean) -> Unit,
+    onInspectPhone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showActivity by remember { mutableStateOf(false) }
@@ -382,10 +396,10 @@ private fun ChatPane(
             }
             if (draft.startsWith("/")) {
                 Spacer(Modifier.height(8.dp))
-                SlashCommandPalette(onDraftChanged, onReasoningModeChanged, onToolCallsToggled, onCommandPassthroughToggled)
+                SlashCommandPalette(onDraftChanged, onReasoningModeChanged, onToolCallsToggled, onCommandPassthroughToggled, onInspectPhone)
             } else if (showAddMenu) {
                 Spacer(Modifier.height(8.dp))
-                ComposerAccessorySheet(onDraftChanged, onReasoningModeChanged, onToolCallsToggled) { showAddMenu = false }
+                ComposerAccessorySheet(onDraftChanged, onReasoningModeChanged, onToolCallsToggled, onInspectPhone) { showAddMenu = false }
             }
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -393,7 +407,7 @@ private fun ChatPane(
                     onClick = { showAddMenu = !showAddMenu },
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(containerColor = AgentColors.SurfaceHigh, contentColor = AgentColors.Text),
-                    modifier = Modifier.size(48.dp).testTag("composer-add")
+                    modifier = Modifier.size(48.dp).semantics { contentDescription = "Open chat tools" }.testTag("composer-add")
                 ) { Text("+", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
                 OutlinedTextField(
                     draft,
@@ -401,16 +415,18 @@ private fun ChatPane(
                     placeholder = { Text("Ask Hermes…") },
                     colors = textFieldColors(),
                     shape = RoundedCornerShape(22.dp),
-                    modifier = Modifier.weight(1f).heightIn(min = 56.dp).testTag("message-field"),
-                    singleLine = true
+                    modifier = Modifier.weight(1f).heightIn(min = 56.dp, max = 128.dp).testTag("message-field"),
+                    minLines = 1,
+                    maxLines = 4,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                 )
                 Button(
                     onClick = onSend,
                     enabled = draft.isNotBlank(),
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(containerColor = AgentColors.Indigo, disabledContainerColor = AgentColors.SurfaceHigh, contentColor = Color.White),
-                    modifier = Modifier.size(48.dp).testTag("send-button")
-                ) { Text("↑", fontWeight = FontWeight.Bold, fontSize = 18.sp) }
+                    modifier = Modifier.size(48.dp).semantics { contentDescription = "Send message" }.testTag("send-button")
+                ) { Text("Send", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
             }
         }
     }
@@ -490,10 +506,17 @@ private fun AgentActivityPill(state: AgentOverlayUiState, expanded: Boolean, onT
             Text(if (state.isLoading) "Hermes is working" else "Hermes can reason, use tools, and run commands when needed", color = AgentColors.Text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 2)
             Text(if (expanded) "⌃" else "⌄", color = AgentColors.Subtle, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
-        if (expanded) {
-            ActivityStep("Chooses a model automatically unless you switch it", done = true)
-            ActivityStep("Uses tools and skills only when the request calls for it", done = true)
-            ActivityStep("Type / to open the Hermes command palette", done = true)
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                ActivityStep("Chooses a model automatically unless you switch it", done = true)
+                ActivityStep("Uses tools and skills only when the request calls for it", done = true)
+                ActivityStep("Phone automation exposes Playwright-style refs, OCR/vision boxes, and tap/type/swipe tools", done = true)
+                ActivityStep("Type / to open the Hermes command palette", done = true)
+            }
         }
     }
 }
@@ -511,6 +534,7 @@ private fun ComposerAccessorySheet(
     onDraftChanged: (String) -> Unit,
     onReasoningModeChanged: (ChatOptions.ReasoningMode) -> Unit,
     onToolCallsToggled: (Boolean) -> Unit,
+    onInspectPhone: () -> Unit,
     onDismiss: () -> Unit
 ) {
     Row(
@@ -537,6 +561,11 @@ private fun ComposerAccessorySheet(
             onDraftChanged("Use my files to answer: ")
             onDismiss()
         }
+        AccessoryAction("Inspect phone") {
+            onToolCallsToggled(true)
+            onInspectPhone()
+            onDismiss()
+        }
     }
 }
 
@@ -561,7 +590,8 @@ private fun SlashCommandPalette(
     onDraftChanged: (String) -> Unit,
     onReasoningModeChanged: (ChatOptions.ReasoningMode) -> Unit,
     onToolCallsToggled: (Boolean) -> Unit,
-    onCommandPassthroughToggled: (Boolean) -> Unit
+    onCommandPassthroughToggled: (Boolean) -> Unit,
+    onInspectPhone: () -> Unit
 ) {
     Column(
         Modifier
@@ -580,6 +610,12 @@ private fun SlashCommandPalette(
         CommandRow("/skills", "Browse and load skills") {
             onCommandPassthroughToggled(true)
             onDraftChanged("/skills")
+        }
+        CommandRow("/phone", "Inspect visible phone UI with refs and boxes") {
+            onToolCallsToggled(true)
+            onCommandPassthroughToggled(true)
+            onInspectPhone()
+            onDraftChanged("/phone ")
         }
         CommandRow("/reason", "Ask for a deeper answer") {
             onReasoningModeChanged(ChatOptions.ReasoningMode.Deep)

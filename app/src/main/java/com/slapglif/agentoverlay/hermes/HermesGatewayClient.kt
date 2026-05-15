@@ -140,6 +140,11 @@ class HermesGatewayClient(
             append("Expose concise reasoning status, execute tool calls when useful, and keep command output mobile-readable. ")
             append("Reasoning mode: ${options.reasoningMode.name}. ")
             append("Tool calls: ${if (options.toolCallsEnabled) "enabled" else "disabled"}. ")
+            if (options.toolCallsEnabled) {
+                append("Available phone automation tools use Playwright MCP-style refs and RustDesk-style local input: ")
+                append("phone.snapshot, phone.accessibility_tree, phone.tap, phone.type, phone.swipe, phone.back, phone.home. ")
+                append("Prefer semantic refs and bounding boxes over blind coordinates; ask for confirmation before destructive actions. ")
+            }
             if (commandMode) append("The user message is a raw Hermes slash command; pass it through exactly and execute the matching Hermes command/skill behavior when supported. ")
         }
     }

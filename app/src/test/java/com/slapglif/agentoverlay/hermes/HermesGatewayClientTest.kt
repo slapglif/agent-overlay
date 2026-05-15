@@ -1,6 +1,11 @@
 package com.slapglif.agentoverlay.hermes
 
+import com.slapglif.agentoverlay.model.ChatOptions
+import kotlinx.coroutines.test.runTest
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HermesGatewayClientTest {
@@ -10,5 +15,55 @@ class HermesGatewayClientTest {
 
     @Test fun normalizeBaseUrlTrimsTrailingSlash() {
         assertEquals("http://10.0.2.2:8642", HermesGatewayClient.normalizeBaseUrl(" http://10.0.2.2:8642/ "))
+    }
+
+    @Test fun sendMessageIncludesHermesOptionsAndPhoneToolContract() = runTest {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setBody("""
+            {"choices":[{"message":{"content":"ack"}}]}
+        """.trimIndent()).setHeader("Content-Type", "application/json"))
+        server.start()
+        try {
+            val client = HermesGatewayClient()
+            val result = client.sendMessage(
+                baseUrl = server.url("/").toString(),
+                apiKey = "secret",
+                threadId = "thread-1",
+                message = "/phone inspect",
+                options = ChatOptions(
+                    modelId = "hermes-agent",
+                    reasoningMode = ChatOptions.ReasoningMode.Deep,
+                    toolCallsEnabled = true,
+                    commandPassthroughEnabled = true
+                )
+            )
+
+            assertEquals("ack", result)
+            val request = server.takeRequest()
+            assertEquals("Bearer secret", request.getHeader("Authorization"))
+            assertEquals("/v1/chat/completions", request.path)
+            val body = request.body.readUtf8()
+            assertTrue(body.contains("\"session_id\":\"thread-1\""))
+            assertTrue(body.contains("\"reasoning_effort\":\"high\""))
+            assertTrue(body.contains("phone.snapshot"))
+            assertTrue(body.contains("raw Hermes slash command"))
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test fun listModelsParsesOpenAiStyleData() = runTest {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setBody("""
+            {"object":"list","data":[{"id":"model-a","name":"Model A"}]}
+        """.trimIndent()).setHeader("Content-Type", "application/json"))
+        server.start()
+        try {
+            val models = HermesGatewayClient().listModels(server.url("/").toString(), "")
+            assertEquals("model-a", models.single().id)
+            assertEquals("Model A", models.single().label)
+        } finally {
+            server.shutdown()
+        }
     }
 }

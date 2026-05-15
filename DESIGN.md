@@ -135,12 +135,13 @@ Use Material 3 surface containers rather than arbitrary translucency. Elevation 
 - **Activity rail:** 56px wide, dark surface, selected item uses primary container tint.
 - **Status pill:** high-contrast label/value chip.
 - **Floating command button:** one small circular always-on-top affordance with a status dot; first tap unfolds controls rather than opening a large panel immediately.
-- **Quick-action tray:** compact attached list with obvious Monica/Messenger-style rows for Live chat, Agents, Lists, and Settings.
+- **Quick-action tray:** compact attached list with obvious Monica/Messenger-style rows for Live chat, Agents, Lists, Phone tools, and Settings.
 - **Agent checkpoint card:** title, ID, status, selected outline, avatar/status dot, and a View affordance that animates into the selected agent view.
 - **Floating agent view:** title/status header, transcript bubbles, anchored composer, explicit ↗/⚙ full-screen affordances.
 - **Agentic chat controls:** model picker in the header; composer `+` opens user-language actions such as Deep answer / Use web / Use files; activity details expand only on demand.
 - **Slash-command palette:** `/commands`, `/skills`, `/reason`, `/tools` appear only when the composer starts with `/`, never as persistent transcript clutter.
 - **Activity disclosure:** reasoning and tool calls show as a compact “Hermes is working / Activity” row with a plain checklist, not as fake chat participants.
+- **Phone automation panel:** RustDesk-inspired local service boundary (capture/context + input injection on device) exposed as Playwright MCP-style tools: `phone.snapshot`, `phone.accessibility_tree`, `phone.tap`, `phone.type`, `phone.swipe`, `phone.back`, and `phone.home`. Use visible refs and bounding boxes before coordinates; destructive actions need explicit confirmation.
 
 ## Do's and Don'ts
 

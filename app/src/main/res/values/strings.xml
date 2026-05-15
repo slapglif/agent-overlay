@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Agent Overlay</string>
+    <string name="phone_control_accessibility_description">Allows Hermes to inspect visible screen content and perform confirmed phone automation actions.</string>
 </resources>
