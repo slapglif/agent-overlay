@@ -164,7 +164,7 @@ private fun HeroHeader(state: AgentOverlayUiState, onStartOverlay: () -> Unit) {
                         letterSpacing = (-0.9).sp
                     )
                     Text(
-                        "Tiny command button → graph menu → agent view",
+                        "Tiny command button → quick actions → agent view",
                         color = AgentColors.Muted,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
@@ -213,7 +213,7 @@ private fun FlowHintStrip() {
     ) {
         Text("Icon", color = AgentColors.Text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         Text("→", color = AgentColors.Subtle, fontSize = 12.sp)
-        Text("graph menu", color = AgentColors.Muted, fontSize = 12.sp)
+        Text("quick tray", color = AgentColors.Muted, fontSize = 12.sp)
         Text("→", color = AgentColors.Subtle, fontSize = 12.sp)
         Text("agent view", color = AgentColors.Indigo, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.weight(1f))

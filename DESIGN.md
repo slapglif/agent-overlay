@@ -1,7 +1,7 @@
 ---
 version: alpha
 name: Agent Overlay Material Dark Workbench
-description: Material Design 3 dark-mode-first mobile workbench for floating Hermes agent bubbles.
+description: Material Design 3 dark-mode-first mobile workbench for Monica/Messenger-style floating Hermes agent controls.
 colors:
   primary: "#8B83FF"
   secondary: "#72B8FF"
@@ -85,7 +85,7 @@ components:
 
 ## Overview
 
-Agent Overlay now uses a Material Design 3 dark-mode-first workbench model: dark surfaces, explicit color roles, shape tokens, 48dp-class controls, accessible contrast, and a clear overlay-first product model. Replit remains the workflow inspiration (activity rail, agent/status cards, command-link workbench), but the Android execution follows Material 3 color, typography, shape, and touch-target conventions.
+Agent Overlay now uses a Material Design 3 dark-mode-first workbench model with a Monica/Messenger/WhatsApp/WeChat overlay interaction: a tiny floating command button, an attached quick-action tray, agent cards, and a selected agent view. Replit remains the full-screen workflow inspiration, but the overlay follows recognizable mobile chat-assistant conventions rather than abstract graph navigation.
 
 Applied notes:
 
@@ -94,7 +94,7 @@ Applied notes:
 - Primary action uses active indigo container, not low-contrast gray.
 - Agent cards use checkpoint/status language with compact labels.
 - Composer is anchored, rounded, and minimum-touch-target friendly.
-- Floating overlay starts as one small circular command button, then unfolds into a graph/list hybrid launcher before escalating to agent cards or a selected agent view.
+- Floating overlay starts as one small circular command button, then unfolds into an attached quick-action tray before escalating to agent cards or a selected agent view.
 
 ## Colors
 
@@ -114,7 +114,7 @@ Use Inter/system sans throughout, aligned to Material 3 roles: headline for the 
 ## Layout
 
 - Full-screen app: Material dark workbench with activity rail + content stack.
-- Overlay: command icon → graph/list launcher → agent card list or quick section → selected agent view remains the primary user journey.
+- Overlay: command icon → attached quick-action tray → agent card list or quick section → selected agent view remains the primary user journey.
 - Full-screen Activity is secondary and opens only via title/gear/expand.
 - Interactive controls should meet or exceed 48dp height where practical; compact overlay chips may be visually smaller but must sit in larger tap regions when promoted to production.
 
@@ -134,7 +134,7 @@ Use Material 3 surface containers rather than arbitrary translucency. Elevation 
 - **Activity rail:** 56px wide, dark surface, selected item uses primary container tint.
 - **Status pill:** high-contrast label/value chip.
 - **Floating command button:** one small circular always-on-top affordance with a status dot; first tap unfolds controls rather than opening a large panel immediately.
-- **Command graph launcher:** compact network/list hybrid with orbit nodes for Agents, Chat, Open, and Settings plus attached quick-section chips.
+- **Quick-action tray:** compact attached list with obvious Monica/Messenger-style rows for Live chat, Agents, Lists, and Settings.
 - **Agent checkpoint card:** title, ID, status, selected outline, avatar/status dot, and a View affordance that animates into the selected agent view.
 - **Floating agent view:** title/status header, transcript bubbles, anchored composer, explicit ↗/⚙ full-screen affordances.
 
@@ -143,7 +143,7 @@ Use Material 3 surface containers rather than arbitrary translucency. Elevation 
 Do:
 - Prefer Material 3 color roles, typography roles, shapes, and 48dp touch-target conventions.
 - Keep the app dark-mode-first.
-- Keep the initial hover affordance as a tiny circular icon; unfold to graph/list controls before opening larger agent cards or views.
+- Keep the initial hover affordance as a tiny circular icon; unfold to an attached action tray before opening larger agent cards or views.
 - Keep all full-screen transitions explicit.
 
 Don't:

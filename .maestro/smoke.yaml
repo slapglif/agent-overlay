@@ -3,7 +3,7 @@ appId: com.slapglif.agentoverlay.debug
 - launchApp:
     clearState: true
 - assertVisible: "Agent Overlay"
-- assertVisible: "Tiny command button → graph menu → agent view"
+- assertVisible: "Tiny command button → quick actions → agent view"
 - tapOn: "Connect"
 - extendedWaitUntil:
     visible: "Live Hermes run"
