@@ -38,7 +38,11 @@ class MainActivity : ComponentActivity() {
                         onRefresh = viewModel::refresh,
                         onStartOverlay = { requestOverlayAndStartService() },
                         onSendMessage = viewModel::sendMessage,
-                        onSelectThread = viewModel::selectThread
+                        onSelectThread = viewModel::selectThread,
+                        onSelectModel = viewModel::selectModel,
+                        onReasoningModeChanged = viewModel::setReasoningMode,
+                        onToolCallsToggled = viewModel::setToolCallsEnabled,
+                        onCommandPassthroughToggled = viewModel::setCommandPassthroughEnabled
                     )
                 }
             }

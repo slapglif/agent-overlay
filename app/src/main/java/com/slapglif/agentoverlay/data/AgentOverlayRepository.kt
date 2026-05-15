@@ -1,7 +1,9 @@
 package com.slapglif.agentoverlay.data
 
 import com.slapglif.agentoverlay.hermes.HermesGatewayClient
+import com.slapglif.agentoverlay.model.AgentModel
 import com.slapglif.agentoverlay.model.AgentThread
+import com.slapglif.agentoverlay.model.ChatOptions
 import com.slapglif.agentoverlay.model.GatewayConnection
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -25,8 +27,13 @@ class AgentOverlayRepository(
         return client.listAgentThreads(prefs.gatewayUrl, prefs.apiKey)
     }
 
-    suspend fun sendMessage(threadId: String, message: String): String {
+    suspend fun loadModels(): List<AgentModel> {
         val prefs = preferences.first()
-        return client.sendMessage(prefs.gatewayUrl, prefs.apiKey, threadId, message)
+        return client.listModels(prefs.gatewayUrl, prefs.apiKey)
+    }
+
+    suspend fun sendMessage(threadId: String, message: String, options: ChatOptions): String {
+        val prefs = preferences.first()
+        return client.sendMessage(prefs.gatewayUrl, prefs.apiKey, threadId, message, options)
     }
 }

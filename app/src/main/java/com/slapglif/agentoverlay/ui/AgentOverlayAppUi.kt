@@ -28,7 +28,11 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -54,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import com.slapglif.agentoverlay.AgentOverlayUiState
 import com.slapglif.agentoverlay.model.AgentThread
 import com.slapglif.agentoverlay.model.ChatMessage
+import com.slapglif.agentoverlay.model.ChatOptions
 import com.slapglif.agentoverlay.model.GatewayConnection
 import com.slapglif.agentoverlay.ui.theme.AgentColors
 
@@ -66,7 +71,11 @@ fun AgentOverlayAppUi(
     onRefresh: () -> Unit,
     onStartOverlay: () -> Unit,
     onSendMessage: (String) -> Unit,
-    onSelectThread: (String) -> Unit
+    onSelectThread: (String) -> Unit,
+    onSelectModel: (String) -> Unit,
+    onReasoningModeChanged: (ChatOptions.ReasoningMode) -> Unit,
+    onToolCallsToggled: (Boolean) -> Unit,
+    onCommandPassthroughToggled: (Boolean) -> Unit
 ) {
     var draft by remember { mutableStateOf("") }
     val selectedThread = state.threads.firstOrNull { it.id == state.selectedThreadId }
@@ -94,7 +103,7 @@ fun AgentOverlayAppUi(
                             ChatPane(selectedThread, draft, { draft = it }, {
                                 onSendMessage(draft)
                                 draft = ""
-                            }, Modifier.weight(0.61f).fillMaxWidth())
+                            }, state, onSelectModel, onReasoningModeChanged, onToolCallsToggled, onCommandPassthroughToggled, Modifier.weight(0.61f).fillMaxWidth())
                         }
                     } else {
                         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -102,7 +111,7 @@ fun AgentOverlayAppUi(
                             ChatPane(selectedThread, draft, { draft = it }, {
                                 onSendMessage(draft)
                                 draft = ""
-                            }, Modifier.weight(0.66f).fillMaxHeight())
+                            }, state, onSelectModel, onReasoningModeChanged, onToolCallsToggled, onCommandPassthroughToggled, Modifier.weight(0.66f).fillMaxHeight())
                         }
                     }
                 }
@@ -334,6 +343,11 @@ private fun ChatPane(
     draft: String,
     onDraftChanged: (String) -> Unit,
     onSend: () -> Unit,
+    state: AgentOverlayUiState,
+    onSelectModel: (String) -> Unit,
+    onReasoningModeChanged: (ChatOptions.ReasoningMode) -> Unit,
+    onToolCallsToggled: (Boolean) -> Unit,
+    onCommandPassthroughToggled: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     GlassPanel(modifier.testTag("chat-pane")) {
@@ -343,8 +357,10 @@ private fun ChatPane(
             if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
         }
         Column(Modifier.padding(12.dp)) {
-            ChatHeader(thread)
-            Spacer(Modifier.height(10.dp))
+            ChatHeader(thread, state)
+            Spacer(Modifier.height(8.dp))
+            ChatControlDeck(state, onSelectModel, onReasoningModeChanged, onToolCallsToggled, onCommandPassthroughToggled)
+            Spacer(Modifier.height(8.dp))
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -358,15 +374,19 @@ private fun ChatPane(
             ) {
                 if (messages.isEmpty()) item { EmptyTranscript() } else items(messages) { message -> MessageBubble(message) }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
+            CommandShortcutBar(onDraftChanged)
+            Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     draft,
                     onDraftChanged,
-                    label = { Text("Message Hermes") },
+                    label = { Text(if (draft.startsWith("/")) "Hermes /command passthrough" else "Message Hermes") },
+                    placeholder = { Text("Message Hermes or /commands") },
+                    supportingText = { Text("/commands, /skills, /tools, /model route to Hermes") },
                     colors = textFieldColors(),
                     shape = RoundedCornerShape(18.dp),
-                    modifier = Modifier.weight(1f).heightIn(min = 58.dp).testTag("message-field")
+                    modifier = Modifier.weight(1f).heightIn(min = 68.dp).testTag("message-field")
                 )
                 Button(
                     onClick = onSend,
@@ -381,7 +401,7 @@ private fun ChatPane(
 }
 
 @Composable
-private fun ChatHeader(thread: AgentThread?) {
+private fun ChatHeader(thread: AgentThread?, state: AgentOverlayUiState) {
     val status = thread?.status ?: AgentThread.Status.Idle
     Row(
         Modifier
@@ -396,9 +416,113 @@ private fun ChatHeader(thread: AgentThread?) {
         AgentAvatar(thread?.title ?: "Select", statusColor(status))
         Column(Modifier.weight(1f)) {
             Text(thread?.title ?: "Select an agent", color = AgentColors.Text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("Tap title bar for full-screen settings • chat stays floating", color = AgentColors.Muted, fontSize = 12.sp)
+            Text("${state.chatOptions.modelId} • ${state.chatOptions.reasoningMode.name.lowercase()} reasoning • tools ${if (state.chatOptions.toolCallsEnabled) "on" else "off"}", color = AgentColors.Muted, fontSize = 12.sp)
         }
         Text("↗", color = AgentColors.Subtle, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun ChatControlDeck(
+    state: AgentOverlayUiState,
+    onSelectModel: (String) -> Unit,
+    onReasoningModeChanged: (ChatOptions.ReasoningMode) -> Unit,
+    onToolCallsToggled: (Boolean) -> Unit,
+    onCommandPassthroughToggled: (Boolean) -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(AgentColors.SurfaceHigh)
+            .border(1.dp, AgentColors.Border, RoundedCornerShape(18.dp))
+            .padding(9.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ModelMenu(state, onSelectModel, Modifier.weight(1f))
+            ToggleChip("Tools", state.chatOptions.toolCallsEnabled) { onToolCallsToggled(!state.chatOptions.toolCallsEnabled) }
+            ToggleChip("/cmd", state.chatOptions.commandPassthroughEnabled) { onCommandPassthroughToggled(!state.chatOptions.commandPassthroughEnabled) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            ReasoningChip("Auto", state.chatOptions.reasoningMode == ChatOptions.ReasoningMode.Auto) { onReasoningModeChanged(ChatOptions.ReasoningMode.Auto) }
+            ReasoningChip("Think", state.chatOptions.reasoningMode == ChatOptions.ReasoningMode.Think) { onReasoningModeChanged(ChatOptions.ReasoningMode.Think) }
+            ReasoningChip("Deep", state.chatOptions.reasoningMode == ChatOptions.ReasoningMode.Deep) { onReasoningModeChanged(ChatOptions.ReasoningMode.Deep) }
+            Spacer(Modifier.weight(1f))
+            Text("reasoning / tool calls / model swap", color = AgentColors.Subtle, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun ModelMenu(state: AgentOverlayUiState, onSelectModel: (String) -> Unit, modifier: Modifier = Modifier) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier) {
+        Button(
+            onClick = { expanded = true },
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = AgentColors.Surface, contentColor = AgentColors.Text),
+            modifier = Modifier.fillMaxWidth().height(42.dp).testTag("model-switcher")
+        ) { Text("Model: ${state.chatOptions.modelId}", maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp) }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            state.availableModels.forEach { model ->
+                DropdownMenuItem(
+                    text = { Text(model.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    onClick = {
+                        onSelectModel(model.id)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToggleChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = AgentColors.Indigo.copy(alpha = 0.28f),
+            selectedLabelColor = AgentColors.Text,
+            labelColor = AgentColors.Muted
+        )
+    )
+}
+
+@Composable
+private fun ReasoningChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = AgentColors.Success.copy(alpha = 0.20f),
+            selectedLabelColor = AgentColors.Success,
+            labelColor = AgentColors.Muted
+        )
+    )
+}
+
+@Composable
+private fun CommandShortcutBar(onDraftChanged: (String) -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        listOf("/commands", "/skills", "/tools", "/model").forEach { command ->
+            Text(
+                command,
+                color = AgentColors.Indigo,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(AgentColors.Indigo.copy(alpha = 0.12f))
+                    .border(1.dp, AgentColors.Indigo.copy(alpha = 0.26f), RoundedCornerShape(999.dp))
+                    .clickable { onDraftChanged(command) }
+                    .padding(horizontal = 9.dp, vertical = 7.dp)
+            )
+        }
     }
 }
 
@@ -406,23 +530,25 @@ private fun ChatHeader(thread: AgentThread?) {
 private fun MessageBubble(message: ChatMessage) {
     val isUser = message is ChatMessage.User
     val isTool = message is ChatMessage.Tool
+    val isReasoning = message is ChatMessage.Reasoning
     val accent = when {
         isUser -> AgentColors.Indigo
         isTool -> AgentColors.Warn
+        isReasoning -> AgentColors.Success
         else -> AgentColors.Info
     }
     Box(Modifier.fillMaxWidth(), contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart) {
         Row(Modifier.fillMaxWidth(0.92f), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.Top) {
-            if (!isUser) Avatar(if (isTool) "⚙" else "H", accent)
+            if (!isUser) Avatar(if (isTool) "⚙" else if (isReasoning) "◇" else "H", accent)
             Column(
                 Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(if (isUser) AgentColors.Indigo.copy(alpha = 0.14f) else AgentColors.SurfaceHigh)
-                    .border(1.dp, if (isUser) AgentColors.Indigo.copy(alpha = 0.42f) else AgentColors.Border, RoundedCornerShape(18.dp))
+                    .background(if (isUser) AgentColors.Indigo.copy(alpha = 0.14f) else if (isReasoning) AgentColors.Success.copy(alpha = 0.08f) else AgentColors.SurfaceHigh)
+                    .border(1.dp, if (isUser) AgentColors.Indigo.copy(alpha = 0.42f) else if (isReasoning) AgentColors.Success.copy(alpha = 0.24f) else AgentColors.Border, RoundedCornerShape(18.dp))
                     .padding(12.dp)
             ) {
-                Text(if (isUser) "You" else if (isTool) "Gateway" else "Hermes", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(if (isUser) "You" else if (isTool) "Tool call" else if (isReasoning) "Thinking" else "Hermes", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
                 Text(message.text, color = AgentColors.Text, fontSize = 14.sp, lineHeight = 20.sp)
             }
@@ -442,7 +568,7 @@ private fun Avatar(label: String, color: Color) {
 private fun EmptyTranscript() {
     Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("No messages yet", color = AgentColors.Text, fontWeight = FontWeight.SemiBold)
-        Text("Pick a running agent bubble and send Hermes a command.", color = AgentColors.Muted, fontSize = 13.sp)
+        Text("Pick an agent, choose a model, toggle reasoning/tools, or pass /commands through Hermes.", color = AgentColors.Muted, fontSize = 13.sp)
     }
 }
 

@@ -7,8 +7,10 @@ import androidx.lifecycle.viewModelScope
 import com.slapglif.agentoverlay.data.AgentOverlayRepository
 import com.slapglif.agentoverlay.data.AppPreferences
 import com.slapglif.agentoverlay.hermes.HermesGatewayClient
+import com.slapglif.agentoverlay.model.AgentModel
 import com.slapglif.agentoverlay.model.AgentThread
 import com.slapglif.agentoverlay.model.ChatMessage
+import com.slapglif.agentoverlay.model.ChatOptions
 import com.slapglif.agentoverlay.model.GatewayConnection
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,7 +44,15 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
         _state.update { it.copy(isLoading = true, error = null) }
         runCatching { repository.checkConnection() }
             .onSuccess { connection ->
-                _state.update { it.copy(connection = connection, isLoading = false) }
+                val models = repository.loadModels()
+                _state.update { current ->
+                    current.copy(
+                        connection = connection,
+                        availableModels = models,
+                        chatOptions = current.chatOptions.copy(modelId = current.chatOptions.modelId.ifBlank { models.firstOrNull()?.id ?: "hermes-agent" }),
+                        isLoading = false
+                    )
+                }
                 refresh()
             }
             .onFailure { err -> _state.update { it.copy(isLoading = false, error = err.message) } }
@@ -64,17 +74,40 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
         _state.update { it.copy(selectedThreadId = id) }
     }
 
+    fun selectModel(modelId: String) {
+        _state.update { it.copy(chatOptions = it.chatOptions.copy(modelId = modelId)) }
+    }
+
+    fun setReasoningMode(mode: ChatOptions.ReasoningMode) {
+        _state.update { it.copy(chatOptions = it.chatOptions.copy(reasoningMode = mode)) }
+    }
+
+    fun setToolCallsEnabled(enabled: Boolean) {
+        _state.update { it.copy(chatOptions = it.chatOptions.copy(toolCallsEnabled = enabled)) }
+    }
+
+    fun setCommandPassthroughEnabled(enabled: Boolean) {
+        _state.update { it.copy(chatOptions = it.chatOptions.copy(commandPassthroughEnabled = enabled)) }
+    }
+
     fun sendMessage(text: String) = viewModelScope.launch {
         val threadId = _state.value.selectedThreadId ?: "mobile-overlay"
         if (text.isBlank()) return@launch
+        val options = _state.value.chatOptions
+        val isCommand = text.trimStart().startsWith("/")
         _state.update { current ->
             current.copy(
-                threads = current.threads.upsertMessage(threadId, ChatMessage.User(text)),
+                threads = current.threads
+                    .upsertMessage(threadId, ChatMessage.User(text))
+                    .upsertMessage(threadId, ChatMessage.Reasoning(reasoningLabel(options)))
+                    .let { messages ->
+                        if (isCommand) messages.upsertMessage(threadId, ChatMessage.Tool("Hermes command passthrough armed for ${text.trim().substringBefore(' ')}")) else messages
+                    },
                 isLoading = true,
                 error = null
             )
         }
-        runCatching { repository.sendMessage(threadId, text) }
+        runCatching { repository.sendMessage(threadId, text, options) }
             .onSuccess { response ->
                 _state.update { current ->
                     current.copy(
@@ -104,9 +137,17 @@ data class AgentOverlayUiState(
     val connection: GatewayConnection = GatewayConnection.Disconnected,
     val threads: List<AgentThread> = emptyList(),
     val selectedThreadId: String? = null,
+    val availableModels: List<AgentModel> = HermesGatewayClient.DEFAULT_MODELS,
+    val chatOptions: ChatOptions = ChatOptions(),
     val isLoading: Boolean = false,
     val error: String? = null
 )
+
+private fun reasoningLabel(options: ChatOptions): String = when (options.reasoningMode) {
+    ChatOptions.ReasoningMode.Auto -> "Thinking: auto reasoning • model ${options.modelId}"
+    ChatOptions.ReasoningMode.Think -> "Thinking: deliberate reasoning enabled • model ${options.modelId}"
+    ChatOptions.ReasoningMode.Deep -> "Thinking: deep reasoning enabled • model ${options.modelId}"
+} + " • tools ${if (options.toolCallsEnabled) "on" else "off"}"
 
 private fun List<AgentThread>.upsertMessage(threadId: String, message: ChatMessage): List<AgentThread> {
     val existing = firstOrNull { it.id == threadId }

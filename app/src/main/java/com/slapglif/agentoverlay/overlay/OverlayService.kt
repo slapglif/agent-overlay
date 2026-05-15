@@ -212,11 +212,14 @@ class OverlayService : Service() {
             }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             addView(actionChip("↗") { openMainActivity() })
         })
+        addView(chatCapabilityStrip())
         addView(ScrollView(context).apply {
             background = rounded(Color.argb(80, 0, 0, 0), 20f, Color.argb(18, 255, 255, 255))
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(10), dp(10), dp(10), dp(10))
+                addView(message("Thinking", "Reasoning: auto • model Hermes Agent • tools enabled"))
+                addView(message("Tool call", "Ready to surface tool calls, skills, and /commands passthrough."))
                 addView(message("Hermes", "Standing by in ${selectedAgent.title}. This stays hovering over your current app."))
                 addView(message("You", "status check", alignEnd = true))
                 addView(message("Gateway", "Mock Hermes acknowledged: status check"))
@@ -227,7 +230,7 @@ class OverlayService : Service() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(10), 0, 0)
             addView(EditText(context).apply {
-                hint = "Message ${selectedAgent.shortName}"
+                hint = "Message ${selectedAgent.shortName} or /commands"
                 textSize = 14f
                 minHeight = dp(46)
                 setSingleLine(true)
@@ -238,6 +241,16 @@ class OverlayService : Service() {
             }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { rightMargin = dp(8) })
             addView(actionChip("Send", wide = true) { })
         })
+    }
+
+    private fun chatCapabilityStrip(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(0, 0, 0, dp(9))
+        addView(actionChip("Think"), LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6) })
+        addView(actionChip("Tools"), LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6) })
+        addView(actionChip("Model"), LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6) })
+        addView(actionChip("/commands") { }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
     }
 
     private fun hoverControls(params: WindowManager.LayoutParams, title: String): LinearLayout = LinearLayout(this).apply {
@@ -396,7 +409,7 @@ class OverlayService : Service() {
         setOnClickListener { onClick() }
     }
 
-    private fun actionChip(textValue: String, wide: Boolean = false, onClick: () -> Unit): TextView = TextView(this).apply {
+    private fun actionChip(textValue: String, wide: Boolean = false, onClick: () -> Unit = {}): TextView = TextView(this).apply {
         text = textValue
         gravity = Gravity.CENTER
         textSize = if (wide) 13f else 14f
