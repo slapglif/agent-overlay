@@ -94,15 +94,9 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
         val threadId = _state.value.selectedThreadId ?: "mobile-overlay"
         if (text.isBlank()) return@launch
         val options = _state.value.chatOptions
-        val isCommand = text.trimStart().startsWith("/")
         _state.update { current ->
             current.copy(
-                threads = current.threads
-                    .upsertMessage(threadId, ChatMessage.User(text))
-                    .upsertMessage(threadId, ChatMessage.Reasoning(reasoningLabel(options)))
-                    .let { messages ->
-                        if (isCommand) messages.upsertMessage(threadId, ChatMessage.Tool("Hermes command passthrough armed for ${text.trim().substringBefore(' ')}")) else messages
-                    },
+                threads = current.threads.upsertMessage(threadId, ChatMessage.User(text)),
                 isLoading = true,
                 error = null
             )
@@ -143,11 +137,6 @@ data class AgentOverlayUiState(
     val error: String? = null
 )
 
-private fun reasoningLabel(options: ChatOptions): String = when (options.reasoningMode) {
-    ChatOptions.ReasoningMode.Auto -> "Thinking: auto reasoning • model ${options.modelId}"
-    ChatOptions.ReasoningMode.Think -> "Thinking: deliberate reasoning enabled • model ${options.modelId}"
-    ChatOptions.ReasoningMode.Deep -> "Thinking: deep reasoning enabled • model ${options.modelId}"
-} + " • tools ${if (options.toolCallsEnabled) "on" else "off"}"
 
 private fun List<AgentThread>.upsertMessage(threadId: String, message: ChatMessage): List<AgentThread> {
     val existing = firstOrNull { it.id == threadId }

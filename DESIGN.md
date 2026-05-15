@@ -95,7 +95,7 @@ Applied notes:
 - Agent cards use checkpoint/status language with compact labels.
 - Composer is anchored, rounded, and minimum-touch-target friendly.
 - Floating overlay starts as one small circular command button, then unfolds into an attached quick-action tray before escalating to agent cards or a selected agent view.
-- Chat surfaces expose first-class agent controls: thinking/reasoning mode, tool-call visibility, model/agent swapping, expand affordances, and raw Hermes slash-command passthrough (`/commands`, `/skills`, `/tools`, `/model`).
+- Chat surfaces follow “quiet chat, revealed control”: model in the header, one `+` accessory menu, an expandable activity pill for reasoning/tool steps, and a slash-command palette only after the user types `/`.
 
 ## Colors
 
@@ -138,8 +138,9 @@ Use Material 3 surface containers rather than arbitrary translucency. Elevation 
 - **Quick-action tray:** compact attached list with obvious Monica/Messenger-style rows for Live chat, Agents, Lists, and Settings.
 - **Agent checkpoint card:** title, ID, status, selected outline, avatar/status dot, and a View affordance that animates into the selected agent view.
 - **Floating agent view:** title/status header, transcript bubbles, anchored composer, explicit ↗/⚙ full-screen affordances.
-- **Agent chat control deck:** model switcher, Auto/Think/Deep reasoning chips, tool-call toggle, `/cmd` toggle, and slash-command shortcuts above the composer.
-- **Message types:** user, Hermes, Thinking, and Tool call bubbles have distinct labels and accents so reasoning/tool activity is visible without dumping hidden chain-of-thought.
+- **Agentic chat controls:** model picker in the header; composer `+` opens user-language actions such as Deep answer / Use web / Use files; activity details expand only on demand.
+- **Slash-command palette:** `/commands`, `/skills`, `/reason`, `/tools` appear only when the composer starts with `/`, never as persistent transcript clutter.
+- **Activity disclosure:** reasoning and tool calls show as a compact “Hermes is working / Activity” row with a plain checklist, not as fake chat participants.
 
 ## Do's and Don'ts
 

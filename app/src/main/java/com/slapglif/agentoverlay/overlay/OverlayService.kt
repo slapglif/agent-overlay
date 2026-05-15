@@ -212,15 +212,13 @@ class OverlayService : Service() {
             }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             addView(actionChip("↗") { openMainActivity() })
         })
-        addView(chatCapabilityStrip())
+        addView(activityRibbon())
         addView(ScrollView(context).apply {
             background = rounded(Color.argb(80, 0, 0, 0), 20f, Color.argb(18, 255, 255, 255))
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(10), dp(10), dp(10), dp(10))
-                addView(message("Thinking", "Reasoning: auto • model Hermes Agent • tools enabled"))
-                addView(message("Tool call", "Ready to surface tool calls, skills, and /commands passthrough."))
-                addView(message("Hermes", "Standing by in ${selectedAgent.title}. This stays hovering over your current app."))
+                addView(message("Hermes", "Standing by in ${selectedAgent.title}. Ask normally; I’ll reason, use tools, or run commands when needed."))
                 addView(message("You", "status check", alignEnd = true))
                 addView(message("Gateway", "Mock Hermes acknowledged: status check"))
             })
@@ -243,14 +241,24 @@ class OverlayService : Service() {
         })
     }
 
-    private fun chatCapabilityStrip(): LinearLayout = LinearLayout(this).apply {
+    private fun activityRibbon(): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         setPadding(0, 0, 0, dp(9))
-        addView(actionChip("Think"), LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6) })
-        addView(actionChip("Tools"), LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6) })
-        addView(actionChip("Model"), LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6) })
-        addView(actionChip("/commands") { }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        background = rounded(Color.argb(22, 255, 255, 255), 999f, Color.argb(24, 255, 255, 255))
+        setPadding(dp(10), dp(7), dp(10), dp(7))
+        addView(TextView(context).apply {
+            text = "Ready · Auto · activity hides until needed"
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(MUTED)
+        }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        addView(TextView(context).apply {
+            text = "⋯"
+            textSize = 18f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(TEXT)
+        })
     }
 
     private fun hoverControls(params: WindowManager.LayoutParams, title: String): LinearLayout = LinearLayout(this).apply {

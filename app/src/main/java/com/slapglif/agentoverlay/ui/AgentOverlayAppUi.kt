@@ -350,6 +350,8 @@ private fun ChatPane(
     onCommandPassthroughToggled: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showActivity by remember { mutableStateOf(false) }
+    var showAddMenu by remember { mutableStateOf(false) }
     GlassPanel(modifier.testTag("chat-pane")) {
         val messages = thread?.messages.orEmpty()
         val listState = rememberLazyListState()
@@ -357,100 +359,84 @@ private fun ChatPane(
             if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
         }
         Column(Modifier.padding(12.dp)) {
-            ChatHeader(thread, state)
+            ChatHeader(thread, state, onSelectModel)
             Spacer(Modifier.height(8.dp))
-            ChatControlDeck(state, onSelectModel, onReasoningModeChanged, onToolCallsToggled, onCommandPassthroughToggled)
+            AgentActivityPill(
+                state = state,
+                expanded = showActivity,
+                onToggle = { showActivity = !showActivity }
+            )
             Spacer(Modifier.height(8.dp))
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(22.dp))
                     .background(AgentColors.Surface)
-                    .border(1.dp, AgentColors.Border, RoundedCornerShape(20.dp))
+                    .border(1.dp, AgentColors.Border, RoundedCornerShape(22.dp))
                     .padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 if (messages.isEmpty()) item { EmptyTranscript() } else items(messages) { message -> MessageBubble(message) }
             }
-            Spacer(Modifier.height(8.dp))
-            CommandShortcutBar(onDraftChanged)
+            if (draft.startsWith("/")) {
+                Spacer(Modifier.height(8.dp))
+                SlashCommandPalette(onDraftChanged, onReasoningModeChanged, onToolCallsToggled, onCommandPassthroughToggled)
+            } else if (showAddMenu) {
+                Spacer(Modifier.height(8.dp))
+                ComposerAccessorySheet(onDraftChanged, onReasoningModeChanged, onToolCallsToggled) { showAddMenu = false }
+            }
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { showAddMenu = !showAddMenu },
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = AgentColors.SurfaceHigh, contentColor = AgentColors.Text),
+                    modifier = Modifier.size(48.dp).testTag("composer-add")
+                ) { Text("+", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
                 OutlinedTextField(
                     draft,
                     onDraftChanged,
-                    label = { Text(if (draft.startsWith("/")) "Hermes /command passthrough" else "Message Hermes") },
-                    placeholder = { Text("Message Hermes or /commands") },
-                    supportingText = { Text("/commands, /skills, /tools, /model route to Hermes") },
+                    placeholder = { Text("Ask Hermes…") },
                     colors = textFieldColors(),
-                    shape = RoundedCornerShape(18.dp),
-                    modifier = Modifier.weight(1f).heightIn(min = 68.dp).testTag("message-field")
+                    shape = RoundedCornerShape(22.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 56.dp).testTag("message-field"),
+                    singleLine = true
                 )
                 Button(
                     onClick = onSend,
                     enabled = draft.isNotBlank(),
-                    shape = RoundedCornerShape(18.dp),
+                    shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(containerColor = AgentColors.Indigo, disabledContainerColor = AgentColors.SurfaceHigh, contentColor = Color.White),
-                    modifier = Modifier.height(58.dp).testTag("send-button")
-                ) { Text("Send", fontWeight = FontWeight.SemiBold) }
+                    modifier = Modifier.size(48.dp).testTag("send-button")
+                ) { Text("↑", fontWeight = FontWeight.Bold, fontSize = 18.sp) }
             }
         }
     }
 }
 
 @Composable
-private fun ChatHeader(thread: AgentThread?, state: AgentOverlayUiState) {
+private fun ChatHeader(thread: AgentThread?, state: AgentOverlayUiState, onSelectModel: (String) -> Unit) {
     val status = thread?.status ?: AgentThread.Status.Idle
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(AgentColors.SurfaceHigh)
-            .border(1.dp, AgentColors.Border, RoundedCornerShape(18.dp))
+            .border(1.dp, AgentColors.Border, RoundedCornerShape(20.dp))
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        AgentAvatar(thread?.title ?: "Select", statusColor(status))
+        AgentAvatar(thread?.title ?: "Hermes", statusColor(status))
         Column(Modifier.weight(1f)) {
-            Text(thread?.title ?: "Select an agent", color = AgentColors.Text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("${state.chatOptions.modelId} • ${state.chatOptions.reasoningMode.name.lowercase()} reasoning • tools ${if (state.chatOptions.toolCallsEnabled) "on" else "off"}", color = AgentColors.Muted, fontSize = 12.sp)
+            Text(thread?.title ?: "Hermes", color = AgentColors.Text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(if (state.isLoading) "Working…" else "Ready · ${friendlyModel(state.chatOptions.modelId)}", color = AgentColors.Muted, fontSize = 12.sp)
         }
+        ModelMenu(state, onSelectModel)
+        Text("⋯", color = AgentColors.Subtle, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Text("↗", color = AgentColors.Subtle, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun ChatControlDeck(
-    state: AgentOverlayUiState,
-    onSelectModel: (String) -> Unit,
-    onReasoningModeChanged: (ChatOptions.ReasoningMode) -> Unit,
-    onToolCallsToggled: (Boolean) -> Unit,
-    onCommandPassthroughToggled: (Boolean) -> Unit
-) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(AgentColors.SurfaceHigh)
-            .border(1.dp, AgentColors.Border, RoundedCornerShape(18.dp))
-            .padding(9.dp),
-        verticalArrangement = Arrangement.spacedBy(7.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ModelMenu(state, onSelectModel, Modifier.weight(1f))
-            ToggleChip("Tools", state.chatOptions.toolCallsEnabled) { onToolCallsToggled(!state.chatOptions.toolCallsEnabled) }
-            ToggleChip("/cmd", state.chatOptions.commandPassthroughEnabled) { onCommandPassthroughToggled(!state.chatOptions.commandPassthroughEnabled) }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            ReasoningChip("Auto", state.chatOptions.reasoningMode == ChatOptions.ReasoningMode.Auto) { onReasoningModeChanged(ChatOptions.ReasoningMode.Auto) }
-            ReasoningChip("Think", state.chatOptions.reasoningMode == ChatOptions.ReasoningMode.Think) { onReasoningModeChanged(ChatOptions.ReasoningMode.Think) }
-            ReasoningChip("Deep", state.chatOptions.reasoningMode == ChatOptions.ReasoningMode.Deep) { onReasoningModeChanged(ChatOptions.ReasoningMode.Deep) }
-            Spacer(Modifier.weight(1f))
-            Text("reasoning / tool calls / model swap", color = AgentColors.Subtle, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-        }
     }
 }
 
@@ -458,12 +444,21 @@ private fun ChatControlDeck(
 private fun ModelMenu(state: AgentOverlayUiState, onSelectModel: (String) -> Unit, modifier: Modifier = Modifier) {
     var expanded by remember { mutableStateOf(false) }
     Box(modifier) {
-        Button(
-            onClick = { expanded = true },
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AgentColors.Surface, contentColor = AgentColors.Text),
-            modifier = Modifier.fillMaxWidth().height(42.dp).testTag("model-switcher")
-        ) { Text("Model: ${state.chatOptions.modelId}", maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp) }
+        Text(
+            "${friendlyModel(state.chatOptions.modelId)} ▾",
+            color = AgentColors.Text,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(AgentColors.Surface)
+                .border(1.dp, AgentColors.Border, RoundedCornerShape(999.dp))
+                .clickable { expanded = true }
+                .padding(horizontal = 10.dp, vertical = 8.dp)
+                .testTag("model-switcher")
+        )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             state.availableModels.forEach { model ->
                 DropdownMenuItem(
@@ -479,51 +474,146 @@ private fun ModelMenu(state: AgentOverlayUiState, onSelectModel: (String) -> Uni
 }
 
 @Composable
-private fun ToggleChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-        colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = AgentColors.Indigo.copy(alpha = 0.28f),
-            selectedLabelColor = AgentColors.Text,
-            labelColor = AgentColors.Muted
-        )
-    )
-}
-
-@Composable
-private fun ReasoningChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-        colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = AgentColors.Success.copy(alpha = 0.20f),
-            selectedLabelColor = AgentColors.Success,
-            labelColor = AgentColors.Muted
-        )
-    )
-}
-
-@Composable
-private fun CommandShortcutBar(onDraftChanged: (String) -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        listOf("/commands", "/skills", "/tools", "/model").forEach { command ->
-            Text(
-                command,
-                color = AgentColors.Indigo,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(AgentColors.Indigo.copy(alpha = 0.12f))
-                    .border(1.dp, AgentColors.Indigo.copy(alpha = 0.26f), RoundedCornerShape(999.dp))
-                    .clickable { onDraftChanged(command) }
-                    .padding(horizontal = 9.dp, vertical = 7.dp)
-            )
+private fun AgentActivityPill(state: AgentOverlayUiState, expanded: Boolean, onToggle: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (state.isLoading) AgentColors.Indigo.copy(alpha = 0.12f) else AgentColors.SurfaceHigh)
+            .border(1.dp, if (state.isLoading) AgentColors.Indigo.copy(alpha = 0.32f) else AgentColors.Border, RoundedCornerShape(18.dp))
+            .clickable { onToggle() }
+            .padding(horizontal = 11.dp, vertical = 9.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(8.dp).clip(CircleShape).background(if (state.isLoading) AgentColors.Indigo else AgentColors.Success))
+            Text(if (state.isLoading) "Hermes is working" else "Hermes can reason, use tools, and run commands when needed", color = AgentColors.Text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 2)
+            Text(if (expanded) "⌃" else "⌄", color = AgentColors.Subtle, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        }
+        if (expanded) {
+            ActivityStep("Chooses a model automatically unless you switch it", done = true)
+            ActivityStep("Uses tools and skills only when the request calls for it", done = true)
+            ActivityStep("Type / to open the Hermes command palette", done = true)
         }
     }
+}
+
+@Composable
+private fun ActivityStep(text: String, done: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(if (done) "✓" else "○", color = if (done) AgentColors.Success else AgentColors.Subtle, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text(text, color = AgentColors.Muted, fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun ComposerAccessorySheet(
+    onDraftChanged: (String) -> Unit,
+    onReasoningModeChanged: (ChatOptions.ReasoningMode) -> Unit,
+    onToolCallsToggled: (Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(AgentColors.SurfaceHigh)
+            .border(1.dp, AgentColors.Border, RoundedCornerShape(18.dp))
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        AccessoryAction("Deep answer") {
+            onReasoningModeChanged(ChatOptions.ReasoningMode.Deep)
+            onDraftChanged("Think this through: ")
+            onDismiss()
+        }
+        AccessoryAction("Use web") {
+            onToolCallsToggled(true)
+            onDraftChanged("Search and answer: ")
+            onDismiss()
+        }
+        AccessoryAction("Use files") {
+            onToolCallsToggled(true)
+            onDraftChanged("Use my files to answer: ")
+            onDismiss()
+        }
+    }
+}
+
+@Composable
+private fun AccessoryAction(label: String, onClick: () -> Unit) {
+    Text(
+        label,
+        color = AgentColors.Text,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(AgentColors.Surface)
+            .border(1.dp, AgentColors.Border, RoundedCornerShape(999.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+    )
+}
+
+@Composable
+private fun SlashCommandPalette(
+    onDraftChanged: (String) -> Unit,
+    onReasoningModeChanged: (ChatOptions.ReasoningMode) -> Unit,
+    onToolCallsToggled: (Boolean) -> Unit,
+    onCommandPassthroughToggled: (Boolean) -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(AgentColors.SurfaceHigh)
+            .border(1.dp, AgentColors.Indigo.copy(alpha = 0.32f), RoundedCornerShape(18.dp))
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text("Hermes commands", color = AgentColors.Subtle, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        CommandRow("/commands", "Show available Hermes commands") {
+            onCommandPassthroughToggled(true)
+            onDraftChanged("/commands")
+        }
+        CommandRow("/skills", "Browse and load skills") {
+            onCommandPassthroughToggled(true)
+            onDraftChanged("/skills")
+        }
+        CommandRow("/reason", "Ask for a deeper answer") {
+            onReasoningModeChanged(ChatOptions.ReasoningMode.Deep)
+            onDraftChanged("/reason ")
+        }
+        CommandRow("/tools", "Allow app, file, browser, or shell actions") {
+            onToolCallsToggled(true)
+            onDraftChanged("/tools ")
+        }
+    }
+}
+
+@Composable
+private fun CommandRow(command: String, description: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 8.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(command, color = AgentColors.Indigo, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+        Text(description, color = AgentColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+private fun friendlyModel(modelId: String): String = when {
+    modelId.equals("hermes-agent", ignoreCase = true) -> "Auto"
+    modelId.contains("gpt", ignoreCase = true) -> "GPT"
+    modelId.contains("claude", ignoreCase = true) -> "Claude"
+    modelId.contains("gemini", ignoreCase = true) -> "Gemini"
+    else -> modelId.substringAfterLast('/').take(14)
 }
 
 @Composable
@@ -568,7 +658,7 @@ private fun Avatar(label: String, color: Color) {
 private fun EmptyTranscript() {
     Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("No messages yet", color = AgentColors.Text, fontWeight = FontWeight.SemiBold)
-        Text("Pick an agent, choose a model, toggle reasoning/tools, or pass /commands through Hermes.", color = AgentColors.Muted, fontSize = 13.sp)
+        Text("Ask normally. Hermes will choose models, tools, and commands when needed.", color = AgentColors.Muted, fontSize = 13.sp)
     }
 }
 

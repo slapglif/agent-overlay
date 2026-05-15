@@ -11,8 +11,12 @@ appId: com.slapglif.agentoverlay.debug
 - assertVisible: "Agent bubble roster"
 - assertVisible: "Daily gateway brief"
 - tapOn: "Live Hermes run"
-- assertVisible: "Model: hermes-agent"
+- extendedWaitUntil:
+    visible: "Ready · Auto"
+    timeout: 5000
+- assertVisible: "Hermes can reason, use tools, and run commands when needed"
+- assertVisible: "Ask Hermes…"
+- tapOn: "Ask Hermes…"
+- inputText: "/"
+- assertVisible: "Hermes commands"
 - assertVisible: "/commands"
-- assertVisible: "Tools"
-- assertVisible: "Think"
-- assertVisible: "Deep"
