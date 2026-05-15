@@ -164,7 +164,7 @@ private fun HeroHeader(state: AgentOverlayUiState, onStartOverlay: () -> Unit) {
                         letterSpacing = (-0.9).sp
                     )
                     Text(
-                        "Messenger-style agent bubbles",
+                        "Tiny command button → graph menu → agent view",
                         color = AgentColors.Muted,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
@@ -175,7 +175,7 @@ private fun HeroHeader(state: AgentOverlayUiState, onStartOverlay: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 StatPill("Gateway", if (state.connection is GatewayConnection.Connected) "online" else "local")
                 StatPill("Agents", state.threads.size.coerceAtLeast(1).toString())
-                StatPill("Mode", "bubbles")
+                StatPill("Mode", "hover")
             }
             FlowHintStrip()
             Button(
@@ -183,7 +183,7 @@ private fun HeroHeader(state: AgentOverlayUiState, onStartOverlay: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().height(50.dp).testTag("start-overlay-button"),
                 shape = MaterialTheme.shapes.medium,
                 colors = ButtonDefaults.buttonColors(containerColor = AgentColors.IndigoDeep, contentColor = Color.White)
-            ) { Text("Start agent bubbles", fontWeight = FontWeight.SemiBold, letterSpacing = (-0.1).sp) }
+            ) { Text("Start floating command button", fontWeight = FontWeight.SemiBold, letterSpacing = (-0.1).sp) }
         }
     }
 }
@@ -211,11 +211,11 @@ private fun FlowHintStrip() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("Bubble", color = AgentColors.Text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text("Icon", color = AgentColors.Text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         Text("→", color = AgentColors.Subtle, fontSize = 12.sp)
-        Text("agent list", color = AgentColors.Muted, fontSize = 12.sp)
+        Text("graph menu", color = AgentColors.Muted, fontSize = 12.sp)
         Text("→", color = AgentColors.Subtle, fontSize = 12.sp)
-        Text("floating chat", color = AgentColors.Indigo, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text("agent view", color = AgentColors.Indigo, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.weight(1f))
         Text("⚙ full screen", color = AgentColors.Subtle, fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }

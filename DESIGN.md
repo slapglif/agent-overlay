@@ -66,11 +66,11 @@ components:
     textColor: "#F4F6FB"
     rounded: "{rounded.md}"
     padding: 12px
-  agent-bubble:
+  agent-command-button:
     backgroundColor: "{colors.active}"
     textColor: "#FFFFFF"
     rounded: "{rounded.pill}"
-    size: 56px
+    size: 48px
   panel:
     backgroundColor: "{colors.surface}"
     textColor: "#F4F6FB"
@@ -94,7 +94,7 @@ Applied notes:
 - Primary action uses active indigo container, not low-contrast gray.
 - Agent cards use checkpoint/status language with compact labels.
 - Composer is anchored, rounded, and minimum-touch-target friendly.
-- Floating overlay remains darker and higher-contrast because it sits above arbitrary apps.
+- Floating overlay starts as one small circular command button, then unfolds into a graph/list hybrid launcher before escalating to agent cards or a selected agent view.
 
 ## Colors
 
@@ -114,7 +114,7 @@ Use Inter/system sans throughout, aligned to Material 3 roles: headline for the 
 ## Layout
 
 - Full-screen app: Material dark workbench with activity rail + content stack.
-- Overlay: bubble → agent heads → floating chat remains the primary user journey.
+- Overlay: command icon → graph/list launcher → agent card list or quick section → selected agent view remains the primary user journey.
 - Full-screen Activity is secondary and opens only via title/gear/expand.
 - Interactive controls should meet or exceed 48dp height where practical; compact overlay chips may be visually smaller but must sit in larger tap regions when promoted to production.
 
@@ -133,15 +133,17 @@ Use Material 3 surface containers rather than arbitrary translucency. Elevation 
 
 - **Activity rail:** 56px wide, dark surface, selected item uses primary container tint.
 - **Status pill:** high-contrast label/value chip.
-- **Agent checkpoint card:** title, ID, status, selected outline, and avatar/status dot.
-- **Floating chat:** title/status header, transcript bubbles, anchored composer, explicit ↗/⚙ full-screen affordances.
+- **Floating command button:** one small circular always-on-top affordance with a status dot; first tap unfolds controls rather than opening a large panel immediately.
+- **Command graph launcher:** compact network/list hybrid with orbit nodes for Agents, Chat, Open, and Settings plus attached quick-section chips.
+- **Agent checkpoint card:** title, ID, status, selected outline, avatar/status dot, and a View affordance that animates into the selected agent view.
+- **Floating agent view:** title/status header, transcript bubbles, anchored composer, explicit ↗/⚙ full-screen affordances.
 
 ## Do's and Don'ts
 
 Do:
 - Prefer Material 3 color roles, typography roles, shapes, and 48dp touch-target conventions.
 - Keep the app dark-mode-first.
-- Keep agents as bubbles and floating chats by default.
+- Keep the initial hover affordance as a tiny circular icon; unfold to graph/list controls before opening larger agent cards or views.
 - Keep all full-screen transitions explicit.
 
 Don't:

@@ -30,7 +30,7 @@ import com.slapglif.agentoverlay.R
 class OverlayService : Service() {
     private lateinit var windowManager: WindowManager
     private var overlayView: View? = null
-    private var mode = OverlayMode.Bubbles
+    private var mode = OverlayMode.Bubble
     private var selectedAgent = AGENTS.first()
 
     override fun onCreate() {
@@ -53,7 +53,7 @@ class OverlayService : Service() {
         val params = overlayParams().apply {
             gravity = Gravity.TOP or Gravity.START
             x = 24
-            y = 220
+            y = 240
         }
         renderOverlay(params)
     }
@@ -66,18 +66,21 @@ class OverlayService : Service() {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         }
         val view = when (mode) {
-            OverlayMode.Bubbles -> bubbleStack(params)
-            OverlayMode.AgentList -> agentDock(params)
+            OverlayMode.Bubble -> commandBubble(params)
+            OverlayMode.Launcher -> commandGraph(params)
+            OverlayMode.AgentList -> agentCardList(params)
             OverlayMode.Chat -> chatWindow(params)
         }
         view.alpha = 0f
-        view.scaleX = 0.92f
-        view.scaleY = 0.92f
+        view.scaleX = if (mode == OverlayMode.Bubble) 0.78f else 0.88f
+        view.scaleY = if (mode == OverlayMode.Bubble) 0.78f else 0.88f
+        view.pivotX = dp(24).toFloat()
+        view.pivotY = dp(24).toFloat()
         view.animate()
             .alpha(1f)
             .scaleX(1f)
             .scaleY(1f)
-            .setDuration(170)
+            .setDuration(if (mode == OverlayMode.Bubble) 150 else 220)
             .setInterpolator(AccelerateDecelerateInterpolator())
             .start()
         view.setOnTouchListener(DraggableTouchListener(params, windowManager, view))
@@ -85,36 +88,102 @@ class OverlayService : Service() {
         windowManager.addView(view, params)
     }
 
-    private fun bubbleStack(params: WindowManager.LayoutParams): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        gravity = Gravity.CENTER
-        setPadding(0, 0, 0, 0)
-        AGENTS.take(3).forEachIndexed { index, agent ->
-            addView(agentBubble(agent, compact = index != 0).apply {
-                contentDescription = if (index == 0) "Agent bubbles" else "Agent bubble ${agent.title}"
-                setOnClickListener {
-                    mode = OverlayMode.AgentList
-                    renderOverlay(params)
-                }
-            }, LinearLayout.LayoutParams(dp(if (index == 0) 62 else 48), dp(if (index == 0) 62 else 48)).apply {
-                bottomMargin = dp(8)
-                leftMargin = if (index == 0) 0 else dp(7)
-            })
+    private fun commandBubble(params: WindowManager.LayoutParams): FrameLayout = FrameLayout(this).apply {
+        contentDescription = "Agent command button"
+        background = rounded(INDIGO, 999f, Color.argb(96, 255, 255, 255))
+        elevation = dp(18).toFloat()
+        setPadding(dp(4), dp(4), dp(4), dp(4))
+        addView(TextView(context).apply {
+            text = "☤"
+            gravity = Gravity.CENTER
+            textSize = 23f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+        }, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER))
+        addView(View(context).apply {
+            background = rounded(SUCCESS, 999f, Color.WHITE)
+        }, FrameLayout.LayoutParams(dp(12), dp(12), Gravity.END or Gravity.BOTTOM).apply {
+            rightMargin = dp(1)
+            bottomMargin = dp(1)
+        })
+        setOnClickListener {
+            mode = OverlayMode.Launcher
+            renderOverlay(params)
         }
     }
 
-    private fun agentDock(params: WindowManager.LayoutParams): LinearLayout = panel(312, 0).apply {
-        contentDescription = "Agent list and hover controls"
-        addView(hoverControls(params))
+    private fun commandGraph(params: WindowManager.LayoutParams): LinearLayout = panel(304, 0).apply {
+        contentDescription = "Command graph menu"
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, dp(10))
+            addView(commandGlyph(), LinearLayout.LayoutParams(dp(42), dp(42)).apply { rightMargin = dp(10) })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(TextView(context).apply {
+                    text = "Command graph"
+                    textSize = 18f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(TEXT)
+                })
+                addView(TextView(context).apply {
+                    text = "Pick an orbit: agents, lists, settings, or jump straight into chat."
+                    textSize = 11f
+                    setTextColor(MUTED)
+                })
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(actionChip("×") {
+                mode = OverlayMode.Bubble
+                renderOverlay(params)
+            })
+        })
+        addView(graphOrbit(params), LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(156)))
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            addView(quickNav("Agents") {
+                mode = OverlayMode.AgentList
+                renderOverlay(params)
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(7) })
+            addView(quickNav("List") {
+                mode = OverlayMode.AgentList
+                renderOverlay(params)
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(7) })
+            addView(quickNav("Settings") { openMainActivity() }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        })
+    }
+
+    private fun graphOrbit(params: WindowManager.LayoutParams): FrameLayout = FrameLayout(this).apply {
+        background = rounded(Color.argb(40, 255, 255, 255), 26f, Color.argb(24, 255, 255, 255))
+        addView(linkLine(112, 1), FrameLayout.LayoutParams(dp(112), dp(1), Gravity.CENTER))
+        addView(linkLine(1, 96), FrameLayout.LayoutParams(dp(1), dp(96), Gravity.CENTER))
+        addView(nodeButton("☰", "Agents", INDIGO) {
+            mode = OverlayMode.AgentList
+            renderOverlay(params)
+        }, FrameLayout.LayoutParams(dp(76), dp(46), Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(8) })
+        addView(nodeButton("↗", "Open", INFO) { openMainActivity() }, FrameLayout.LayoutParams(dp(76), dp(46), Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(8) })
+        addView(nodeButton("⚙", "Settings", MUTED) { openMainActivity() }, FrameLayout.LayoutParams(dp(86), dp(46), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(8) })
+        addView(nodeButton("LH", "Chat", SUCCESS) {
+            selectedAgent = AGENTS.first()
+            mode = OverlayMode.Chat
+            renderOverlay(params)
+        }, FrameLayout.LayoutParams(dp(82), dp(46), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = dp(8) })
+        addView(commandGlyph(), FrameLayout.LayoutParams(dp(54), dp(54), Gravity.CENTER))
+    }
+
+    private fun agentCardList(params: WindowManager.LayoutParams): LinearLayout = panel(322, 0).apply {
+        contentDescription = "Agent card list"
+        addView(hoverControls(params, title = "agent cards"))
         addView(TextView(context).apply {
-            text = "Agent heads"
+            text = "Agent card list"
             textSize = 21f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(TEXT)
             setPadding(0, dp(12), 0, dp(4))
         })
         addView(TextView(context).apply {
-            text = "Choose an agent to chat without leaving the current app. Title / ↗ / ⚙ opens full screen."
+            text = "Tap a card to animate into that agent view. Use ↗ / ⚙ for full-screen sections."
             textSize = 13f
             setTextColor(MUTED)
             setPadding(0, 0, 0, dp(10))
@@ -126,15 +195,15 @@ class OverlayService : Service() {
                 renderOverlay(params)
             }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8) })
         }
-        addView(actionText("Collapse to bubbles", MUTED) {
-            mode = OverlayMode.Bubbles
+        addView(actionText("Back to command graph", MUTED) {
+            mode = OverlayMode.Launcher
             renderOverlay(params)
         })
     }
 
     private fun chatWindow(params: WindowManager.LayoutParams): LinearLayout = panel(340, 430).apply {
         contentDescription = "Floating agent chat"
-        addView(hoverControls(params))
+        addView(hoverControls(params, title = "agent view"))
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -151,7 +220,7 @@ class OverlayService : Service() {
                     setOnClickListener { openMainActivity() }
                 })
                 addView(TextView(context).apply {
-                    text = "${selectedAgent.status} • floating chat"
+                    text = "${selectedAgent.status} • agent view"
                     textSize = 12f
                     setTextColor(statusColor(selectedAgent.status))
                 })
@@ -186,7 +255,7 @@ class OverlayService : Service() {
         })
     }
 
-    private fun hoverControls(params: WindowManager.LayoutParams): LinearLayout = LinearLayout(this).apply {
+    private fun hoverControls(params: WindowManager.LayoutParams, title: String): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         background = rounded(Color.rgb(19, 20, 26), 999f, Color.argb(46, 255, 255, 255))
@@ -195,21 +264,25 @@ class OverlayService : Service() {
             text = "☤"
             textSize = 16f
             typeface = Typeface.DEFAULT_BOLD
-            setTextColor(RAY_RED)
+            setTextColor(INDIGO)
         })
         addView(TextView(context).apply {
-            text = "  agents"
+            text = "  $title"
             textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(MUTED)
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        addView(actionChip("⌁") {
+            mode = OverlayMode.Launcher
+            renderOverlay(params)
+        })
         addView(actionChip("☰") {
             mode = OverlayMode.AgentList
             renderOverlay(params)
         })
         addView(actionChip("⚙") { openMainActivity() })
         addView(actionChip("×") {
-            mode = OverlayMode.Bubbles
+            mode = OverlayMode.Bubble
             renderOverlay(params)
         })
     }
@@ -217,7 +290,7 @@ class OverlayService : Service() {
     private fun agentRow(agent: OverlayAgent, onSelect: () -> Unit): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        background = rounded(Color.argb(18, 255, 255, 255), 22f, Color.argb(24, 255, 255, 255))
+        background = rounded(Color.argb(22, 255, 255, 255), 22f, Color.argb(30, 255, 255, 255))
         setPadding(dp(11), dp(11), dp(11), dp(11))
         setOnClickListener { onSelect() }
         addView(agentBubble(agent, compact = true), LinearLayout.LayoutParams(dp(42), dp(42)).apply { rightMargin = dp(10) })
@@ -228,7 +301,7 @@ class OverlayService : Service() {
                 textSize = 15f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(TEXT)
-                setOnClickListener { openMainActivity() }
+                setOnClickListener { onSelect() }
             })
             addView(TextView(context).apply {
                 text = "${agent.status} • ${agent.description}"
@@ -237,7 +310,7 @@ class OverlayService : Service() {
                 setOnClickListener { onSelect() }
             })
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        addView(actionChip("Chat") { onSelect() }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(8) })
+        addView(actionChip("View") { onSelect() }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(8) })
         addView(TextView(context).apply {
             text = "●"
             textSize = 14f
@@ -261,6 +334,55 @@ class OverlayService : Service() {
             rightMargin = dp(2)
             bottomMargin = dp(2)
         })
+    }
+
+    private fun commandGlyph(): FrameLayout = FrameLayout(this).apply {
+        background = rounded(INDIGO, 999f, Color.argb(88, 255, 255, 255))
+        elevation = dp(12).toFloat()
+        addView(TextView(context).apply {
+            text = "☤"
+            gravity = Gravity.CENTER
+            textSize = 20f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+        }, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+    }
+
+    private fun nodeButton(label: String, title: String, color: Int, onClick: () -> Unit): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER
+        background = rounded(Color.argb(46, Color.red(color), Color.green(color), Color.blue(color)), 999f, Color.argb(74, Color.red(color), Color.green(color), Color.blue(color)))
+        setPadding(dp(8), dp(7), dp(8), dp(7))
+        setOnClickListener { onClick() }
+        addView(TextView(context).apply {
+            text = label
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(TEXT)
+        })
+        addView(TextView(context).apply {
+            text = " $title"
+            textSize = 11f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(TEXT)
+        })
+    }
+
+    private fun quickNav(label: String, onClick: () -> Unit): TextView = TextView(this).apply {
+        text = label
+        gravity = Gravity.CENTER
+        textSize = 12f
+        typeface = Typeface.DEFAULT_BOLD
+        setTextColor(TEXT)
+        background = rounded(Color.rgb(35, 36, 44), 999f, Color.argb(34, 255, 255, 255))
+        setPadding(dp(10), dp(10), dp(10), dp(10))
+        setOnClickListener { onClick() }
+    }
+
+    private fun linkLine(width: Int, height: Int): View = View(this).apply {
+        minimumWidth = dp(width)
+        minimumHeight = dp(height)
+        background = rounded(Color.argb(58, 139, 131, 255), 999f)
     }
 
     private fun message(sender: String, body: String, alignEnd: Boolean = false): TextView = TextView(this).apply {
@@ -303,6 +425,8 @@ class OverlayService : Service() {
         typeface = Typeface.DEFAULT_BOLD
         setTextColor(TEXT)
         background = rounded(if (wide) INDIGO else Color.rgb(35, 36, 44), 999f, Color.argb(34, 255, 255, 255))
+        minWidth = dp(if (wide) 58 else 34)
+        minHeight = dp(34)
         setPadding(dp(if (wide) 14 else 9), dp(7), dp(if (wide) 14 else 9), dp(7))
         setOnClickListener { onClick() }
     }
@@ -329,8 +453,8 @@ class OverlayService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("Agent bubbles active")
-            .setContentText("Messenger-style Hermes agent bubbles are running")
+            .setContentTitle("Agent command button active")
+            .setContentText("Tap the floating Hermes icon for graph options")
             .setContentIntent(intent)
             .setOngoing(true)
             .build()
@@ -370,15 +494,16 @@ class OverlayService : Service() {
         private val INDIGO = Color.rgb(113, 112, 255)
         private val SUCCESS = Color.rgb(69, 222, 128)
         private val WARN = Color.rgb(245, 184, 76)
+        private val INFO = Color.rgb(114, 184, 255)
         private val AGENTS = listOf(
-            OverlayAgent("live", "Live Hermes run", "LH", "running", "streaming" , Color.rgb(113, 112, 255)),
+            OverlayAgent("live", "Live Hermes run", "LH", "running", "streaming", Color.rgb(113, 112, 255)),
             OverlayAgent("brief", "Daily gateway brief", "DB", "idle", "ready", Color.rgb(255, 99, 99)),
             OverlayAgent("ops", "Ops sentinel", "OS", "done", "watched", Color.rgb(41, 182, 246))
         )
     }
 }
 
-private enum class OverlayMode { Bubbles, AgentList, Chat }
+private enum class OverlayMode { Bubble, Launcher, AgentList, Chat }
 
 private data class OverlayAgent(
     val id: String,
