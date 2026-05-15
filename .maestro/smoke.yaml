@@ -2,22 +2,17 @@ appId: com.slapglif.agentoverlay.debug
 ---
 - launchApp:
     clearState: true
-- assertVisible: "Agent Overlay"
+- extendedWaitUntil:
+    visible: "Agent Overlay"
+    timeout: 5000
 - assertVisible: "Tiny command button → quick actions → agent view"
 - tapOn: "Connect"
 - extendedWaitUntil:
     visible: "Live Hermes run"
     timeout: 10000
-- assertVisible: "Agent bubble roster"
-- assertVisible: "Daily gateway brief"
-- tapOn: "Live Hermes run"
 - extendedWaitUntil:
     visible: "Ready · Auto"
-    timeout: 5000
-- assertVisible: "Hermes can reason, use tools, and run commands when needed"
-- tapOn: "Hermes can reason, use tools, and run commands when needed"
-- assertVisible: "Type / to open the Hermes command palette"
-- tapOn: "Hermes can reason, use tools, and run commands when needed"
+- assertVisible: "Ready · Auto"
 - assertVisible: "Ask Hermes…"
 - tapOn: "Ask Hermes…"
 - inputText: "/"

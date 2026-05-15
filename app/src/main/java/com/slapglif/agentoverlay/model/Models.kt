@@ -88,6 +88,17 @@ data class PhoneAutomationResult(
     val snapshot: PhoneScreenSnapshot? = null
 )
 
+data class PhoneToolCall(
+    val id: String,
+    val name: String,
+    val argumentsJson: String
+)
+
+data class GatewayChatResponse(
+    val text: String,
+    val phoneToolCalls: List<PhoneToolCall> = emptyList()
+)
+
 sealed interface ChatMessage {
     val text: String
     val timestampMillis: Long

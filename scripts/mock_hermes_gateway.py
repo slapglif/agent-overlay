@@ -62,7 +62,11 @@ class Handler(BaseHTTPRequestHandler):
             if messages:
                 text=messages[-1].get('content','')
             phone=' phone tools armed' if 'phone.snapshot' in system or 'Current phone context' in text else ''
-            self._json({'id':'chatcmpl-mock','object':'chat.completion','choices':[{'index':0,'message':{'role':'assistant','content':f'Mock Hermes acknowledged: {text}{phone}'},'finish_reason':'stop'}]})
+            message: dict[str, object]={'role':'assistant','content':f'Mock Hermes acknowledged: {text}{phone}'}
+            if 'inspect my phone' in text.lower() or 'use phone' in text.lower():
+                message['tool_calls']=[{'id':'call_phone_snapshot','type':'function','function':{'name':'phone.snapshot','arguments':'{}'}}]
+                message['content']='I’ll inspect the visible phone UI and return refs.'
+            self._json({'id':'chatcmpl-mock','object':'chat.completion','choices':[{'index':0,'message':message,'finish_reason':'stop'}]})
         elif self.path == '/v1/runs':
             run_id='run-mock-%d' % int(time.time()*1000)
             RUNS[run_id]={'id':run_id,'status':'running','input':data}

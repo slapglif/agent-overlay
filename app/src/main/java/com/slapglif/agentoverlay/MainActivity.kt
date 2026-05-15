@@ -43,7 +43,8 @@ class MainActivity : ComponentActivity() {
                         onReasoningModeChanged = viewModel::setReasoningMode,
                         onToolCallsToggled = viewModel::setToolCallsEnabled,
                         onCommandPassthroughToggled = viewModel::setCommandPassthroughEnabled,
-                        onInspectPhone = viewModel::inspectPhone
+                        onInspectPhone = viewModel::inspectPhone,
+                        onPerformPhoneAction = viewModel::performPhoneAction
                     )
                 }
             }

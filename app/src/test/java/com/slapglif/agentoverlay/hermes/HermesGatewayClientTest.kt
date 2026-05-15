@@ -38,7 +38,7 @@ class HermesGatewayClientTest {
                 )
             )
 
-            assertEquals("ack", result)
+            assertEquals("ack", result.text)
             val request = server.takeRequest()
             assertEquals("Bearer secret", request.getHeader("Authorization"))
             assertEquals("/v1/chat/completions", request.path)
@@ -46,7 +46,30 @@ class HermesGatewayClientTest {
             assertTrue(body.contains("\"session_id\":\"thread-1\""))
             assertTrue(body.contains("\"reasoning_effort\":\"high\""))
             assertTrue(body.contains("phone.snapshot"))
+            assertTrue(body.contains("\"tools\""))
             assertTrue(body.contains("raw Hermes slash command"))
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test fun sendMessageParsesPhoneToolCalls() = runTest {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setBody("""
+            {"choices":[{"message":{"content":"I'll inspect the phone.","tool_calls":[{"id":"call-1","type":"function","function":{"name":"phone.snapshot","arguments":"{}"}}]}}]}
+        """.trimIndent()).setHeader("Content-Type", "application/json"))
+        server.start()
+        try {
+            val result = HermesGatewayClient().sendMessage(
+                baseUrl = server.url("/").toString(),
+                apiKey = "",
+                threadId = "thread-1",
+                message = "inspect my phone",
+                options = ChatOptions(toolCallsEnabled = true)
+            )
+            assertEquals("I'll inspect the phone.", result.text)
+            assertEquals(1, result.phoneToolCalls.size)
+            assertEquals("phone.snapshot", result.phoneToolCalls.single().name)
         } finally {
             server.shutdown()
         }

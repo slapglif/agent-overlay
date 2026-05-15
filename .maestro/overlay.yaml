@@ -3,7 +3,7 @@ appId: com.slapglif.agentoverlay.debug
 - launchApp:
     clearState: false
 - assertVisible: "Agent Overlay"
-- tapOn: "Start floating command button"
+- tapOn: "Float"
 - waitForAnimationToEnd
 - assertVisible: "☤"
 - tapOn: "☤"
@@ -29,4 +29,6 @@ appId: com.slapglif.agentoverlay.debug
 - tapOn: "Message Live or /commands"
 - inputText: "overlay ping"
 - tapOn: "Send"
-- assertVisible: "Queued for Hermes gateway: overlay ping"
+- extendedWaitUntil:
+    visible: ".*phone tools armed.*"
+    timeout: 10000

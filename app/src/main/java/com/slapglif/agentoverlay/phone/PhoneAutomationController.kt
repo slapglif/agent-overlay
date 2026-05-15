@@ -5,9 +5,44 @@ import com.slapglif.agentoverlay.model.PhoneAutomationResult
 import com.slapglif.agentoverlay.model.PhoneAutomationTool
 import com.slapglif.agentoverlay.model.PhoneElement
 import com.slapglif.agentoverlay.model.PhoneScreenSnapshot
+import org.json.JSONArray
+import org.json.JSONObject
 
 class PhoneAutomationController {
     fun tools(): List<PhoneAutomationTool> = TOOL_DEFINITIONS
+
+    fun toolSchemas(): JSONArray = JSONArray().apply {
+        TOOL_DEFINITIONS.forEach { tool ->
+            put(JSONObject()
+                .put("name", tool.name)
+                .put("description", tool.description)
+                .put("input_schema", JSONObject()
+                    .put("type", "object")
+                    .put("properties", JSONObject().apply { tool.parameters.forEach { put(it, JSONObject().put("type", if (it.endsWith("Ms") || it in setOf("x", "y", "startX", "startY", "endX", "endY")) "number" else "string")) } })
+                    .put("additionalProperties", false)))
+        }
+    }
+
+    fun executeTool(name: String, arguments: JSONObject = JSONObject()): PhoneAutomationResult = when (name) {
+        "phone.snapshot", "phone.accessibility_tree", "phone.ocr", "phone.vision_snapshot" -> inspect()
+        "phone.back" -> perform(PhoneAutomationAction.Back)
+        "phone.home" -> perform(PhoneAutomationAction.Home)
+        "phone.recents" -> perform(PhoneAutomationAction.Recents)
+        "phone.tap" -> {
+            val ref = arguments.optString("ref").takeIf { it.isNotBlank() }
+            if (ref != null) perform(PhoneAutomationAction.TapRef(ref))
+            else perform(PhoneAutomationAction.Tap(arguments.optInt("x"), arguments.optInt("y")))
+        }
+        "phone.type" -> perform(PhoneAutomationAction.TypeText(arguments.optString("text")))
+        "phone.swipe" -> perform(PhoneAutomationAction.Swipe(
+            arguments.optInt("startX"),
+            arguments.optInt("startY"),
+            arguments.optInt("endX"),
+            arguments.optInt("endY"),
+            arguments.optLong("durationMs", 280)
+        ))
+        else -> PhoneAutomationResult(false, name, "Unsupported phone tool: $name", currentSnapshot())
+    }
 
     fun inspect(): PhoneAutomationResult {
         val snapshot = currentSnapshot()
@@ -58,13 +93,16 @@ class PhoneAutomationController {
 
     companion object {
         val TOOL_DEFINITIONS = listOf(
-            PhoneAutomationTool("phone.snapshot", "Return current app/window, screen size, and semantic element refs.", listOf()),
-            PhoneAutomationTool("phone.accessibility_tree", "Return visible text/contentDescription nodes with bounding boxes.", listOf("max_elements")),
+            PhoneAutomationTool("phone.snapshot", "Return current app/window, screen size, semantic element refs, and bounding boxes.", listOf()),
+            PhoneAutomationTool("phone.accessibility_tree", "Return visible text/contentDescription nodes with Playwright-style refs and bounds.", listOf("max_elements")),
+            PhoneAutomationTool("phone.vision_snapshot", "Return the same structured context used for future OCR/vision frame fusion.", listOf()),
+            PhoneAutomationTool("phone.ocr", "Return text-like visible refs; OCR falls back to accessibility labels until screen capture is granted.", listOf()),
             PhoneAutomationTool("phone.tap", "Tap a coordinate or semantic ref such as p12.", listOf("x", "y", "ref")),
             PhoneAutomationTool("phone.type", "Set text into the focused or first editable field.", listOf("text")),
             PhoneAutomationTool("phone.swipe", "Swipe by coordinates for scrolling or gestures.", listOf("startX", "startY", "endX", "endY", "durationMs")),
             PhoneAutomationTool("phone.back", "Press Android back.", listOf()),
-            PhoneAutomationTool("phone.home", "Press Android home.", listOf())
+            PhoneAutomationTool("phone.home", "Press Android home.", listOf()),
+            PhoneAutomationTool("phone.recents", "Open Android recents.", listOf())
         )
     }
 }

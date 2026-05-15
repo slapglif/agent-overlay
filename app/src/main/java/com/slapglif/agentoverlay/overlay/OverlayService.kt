@@ -27,10 +27,24 @@ import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import com.slapglif.agentoverlay.MainActivity
 import com.slapglif.agentoverlay.R
+import com.slapglif.agentoverlay.data.AgentOverlayRepository
+import com.slapglif.agentoverlay.data.AppPreferences
+import com.slapglif.agentoverlay.hermes.HermesGatewayClient
+import com.slapglif.agentoverlay.model.ChatOptions
+import com.slapglif.agentoverlay.model.PhoneAutomationAction
+import com.slapglif.agentoverlay.phone.PhoneAutomationController
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class OverlayService : Service() {
     private lateinit var windowManager: WindowManager
     private var overlayView: View? = null
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private lateinit var repository: AgentOverlayRepository
+    private val phoneAutomation = PhoneAutomationController()
     private var mode = OverlayMode.Bubble
     private var selectedAgent = AGENTS.first()
     private val floatingMessages = mutableListOf(
@@ -40,6 +54,7 @@ class OverlayService : Service() {
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        repository = AgentOverlayRepository(AppPreferences(applicationContext), HermesGatewayClient())
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, notification())
         if (Settings.canDrawOverlays(this)) showOverlay()
@@ -47,6 +62,7 @@ class OverlayService : Service() {
 
     override fun onDestroy() {
         overlayView?.let { runCatching { windowManager.removeView(it) } }
+        serviceScope.cancel()
         overlayView = null
         super.onDestroy()
     }
@@ -257,15 +273,16 @@ class OverlayService : Service() {
                 val text = input.text?.toString()?.trim().orEmpty()
                 if (text.isNotEmpty()) {
                     floatingMessages += "You" to text
-                    floatingMessages += "Gateway" to "Queued for Hermes gateway: $text"
+                    floatingMessages += "Hermes" to "Sending to Hermes gateway…"
                     input.text?.clear()
                     renderOverlay(params)
+                    sendFloatingMessage(text, params)
                 }
             })
         })
     }
 
-    private fun automationWindow(params: WindowManager.LayoutParams): LinearLayout = panel(340, 360).apply {
+    private fun automationWindow(params: WindowManager.LayoutParams): LinearLayout = panel(340, 410).apply {
         contentDescription = "Phone automation tools"
         addView(hoverControls(params, title = "phone tools"))
         addView(TextView(context).apply {
@@ -276,16 +293,66 @@ class OverlayService : Service() {
             setPadding(0, dp(12), 0, dp(4))
         })
         addView(TextView(context).apply {
-            text = "RustDesk-style local control plane: accessibility tree, bounding boxes, tap/type/swipe, and future OCR/vision frames."
+            text = "RustDesk-style local control: accessibility refs, bounding boxes, tap/type/swipe, OCR/vision-ready snapshots."
             textSize = 13f
             setTextColor(MUTED)
             setPadding(0, 0, 0, dp(10))
         })
-        addView(toolRow("phone.snapshot", "Current app, screen size, semantic refs"))
+        addView(toolRow("phone.snapshot", "Current app, refs, bounds, OCR/vision fallback"))
         addView(toolRow("phone.tap", "Tap by coordinate or ref, e.g. p12"))
         addView(toolRow("phone.type", "Type into focused/editable fields"))
         addView(toolRow("phone.swipe", "Scroll or gesture with start/end bounds"))
-        addView(actionText("Open full phone tool console", INDIGO) { openMainActivity() })
+        addView(toolRow("phone.back/home/recents", "Android global actions through AccessibilityService"))
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            addView(actionChip("Inspect", wide = true) {
+                floatingMessages += "Hermes" to "Run /phone in chat for the latest on-device refs and bounds."
+                mode = OverlayMode.Chat
+                renderOverlay(params)
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(8) })
+            addView(actionChip("Console", wide = true) { openMainActivity() }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        })
+    }
+
+    private fun sendFloatingMessage(text: String, params: WindowManager.LayoutParams) {
+        serviceScope.launch {
+            val localPhoneResult = parseFloatingPhoneCommand(text)?.let { phoneAutomation.perform(it) }
+                ?: if (text.trim().equals("/phone", ignoreCase = true) || text.trim().equals("/snapshot", ignoreCase = true)) phoneAutomation.inspect() else null
+            val responseText = if (localPhoneResult != null) {
+                localPhoneResult.message
+            } else {
+                runCatching {
+                    val response = repository.sendMessage("mobile-overlay", text, ChatOptions())
+                    response.phoneToolCalls.forEach { call ->
+                        val result = phoneAutomation.executeTool(call.name, org.json.JSONObject(call.argumentsJson.ifBlank { "{}" }))
+                        floatingMessages += "Activity" to result.message
+                    }
+                    response.text
+                }.getOrElse { err -> "Gateway unavailable: ${err.message ?: err.javaClass.simpleName}" }
+            }
+            val pendingIndex = floatingMessages.indexOfLast { it.first == "Hermes" && it.second == "Sending to Hermes gateway…" }
+            if (pendingIndex >= 0) floatingMessages[pendingIndex] = "Hermes" to responseText else floatingMessages += "Hermes" to responseText
+            if (mode == OverlayMode.Chat) renderOverlay(params)
+        }
+    }
+
+    private fun parseFloatingPhoneCommand(text: String): PhoneAutomationAction? {
+        val parts = text.trim().split(Regex("\\s+"), limit = 2)
+        val command = parts.firstOrNull()?.lowercase() ?: return null
+        val arg = parts.getOrNull(1).orEmpty().trim()
+        return when (command) {
+            "/back" -> PhoneAutomationAction.Back
+            "/home" -> PhoneAutomationAction.Home
+            "/recents" -> PhoneAutomationAction.Recents
+            "/tap" -> {
+                if (arg.matches(Regex("p\\d+", RegexOption.IGNORE_CASE))) PhoneAutomationAction.TapRef(arg.lowercase())
+                else arg.split(',', ' ').mapNotNull { it.toIntOrNull() }.let { if (it.size >= 2) PhoneAutomationAction.Tap(it[0], it[1]) else null }
+            }
+            "/type" -> if (arg.isNotBlank()) PhoneAutomationAction.TypeText(arg) else null
+            "/swipe" -> arg.split(',', ' ').mapNotNull { it.toIntOrNull() }.let { if (it.size >= 4) PhoneAutomationAction.Swipe(it[0], it[1], it[2], it[3]) else null }
+            else -> null
+        }
     }
 
     private fun activityRibbon(): LinearLayout = LinearLayout(this).apply {

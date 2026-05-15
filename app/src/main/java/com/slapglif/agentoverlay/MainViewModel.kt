@@ -12,6 +12,9 @@ import com.slapglif.agentoverlay.model.AgentThread
 import com.slapglif.agentoverlay.model.ChatMessage
 import com.slapglif.agentoverlay.model.ChatOptions
 import com.slapglif.agentoverlay.model.GatewayConnection
+import com.slapglif.agentoverlay.model.PhoneAutomationAction
+import com.slapglif.agentoverlay.model.PhoneAutomationResult
+import com.slapglif.agentoverlay.model.PhoneScreenSnapshot
 import com.slapglif.agentoverlay.phone.PhoneAutomationController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -95,10 +98,13 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
     fun sendMessage(text: String) = viewModelScope.launch {
         val threadId = _state.value.selectedThreadId ?: "mobile-overlay"
         if (text.isBlank()) return@launch
+        parseLocalPhoneCommand(text)?.let { action ->
+            appendUserMessage(threadId, text)
+            applyPhoneResult(threadId, phoneAutomation.perform(action), loading = false)
+            return@launch
+        }
         val options = _state.value.chatOptions
-        val phoneContext = phoneAutomation.currentSnapshot()?.let {
-            "\n\nCurrent phone context for optional phone tools:\n" + it.packageName + " " + it.width + "x" + it.height + " elements=" + it.elements.size
-        }.orEmpty()
+        val phoneContext = phoneAutomation.currentSnapshot()?.toHermesContext().orEmpty()
         _state.update { current ->
             current.copy(
                 threads = current.threads.upsertMessage(threadId, ChatMessage.User(text)),
@@ -110,9 +116,13 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
             .onSuccess { response ->
                 _state.update { current ->
                     current.copy(
-                        threads = current.threads.upsertMessage(threadId, ChatMessage.Assistant(response)),
+                        threads = current.threads.upsertMessage(threadId, ChatMessage.Assistant(response.text)),
                         isLoading = false
                     )
+                }
+                response.phoneToolCalls.forEach { call ->
+                    val result = phoneAutomation.executeTool(call.name, org.json.JSONObject(call.argumentsJson.ifBlank { "{}" }))
+                    applyPhoneResult(threadId, result, loading = false)
                 }
             }
             .onFailure { err -> _state.update { it.copy(isLoading = false, error = err.message) } }
@@ -120,7 +130,19 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
 
     fun inspectPhone() {
         val threadId = _state.value.selectedThreadId ?: "mobile-overlay"
-        val result = phoneAutomation.inspect()
+        applyPhoneResult(threadId, phoneAutomation.inspect(), loading = _state.value.isLoading)
+    }
+
+    fun performPhoneAction(action: PhoneAutomationAction) {
+        val threadId = _state.value.selectedThreadId ?: "mobile-overlay"
+        applyPhoneResult(threadId, phoneAutomation.perform(action), loading = _state.value.isLoading)
+    }
+
+    private fun appendUserMessage(threadId: String, text: String) {
+        _state.update { current -> current.copy(threads = current.threads.upsertMessage(threadId, ChatMessage.User(text))) }
+    }
+
+    private fun applyPhoneResult(threadId: String, result: PhoneAutomationResult, loading: Boolean) {
         _state.update { current ->
             current.copy(
                 threads = current.threads.upsertMessage(
@@ -131,9 +153,39 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
                         bounds = result.snapshot?.elements?.map { it.bounds }.orEmpty()
                     )
                 ),
+                phoneSnapshot = result.snapshot ?: current.phoneSnapshot,
+                lastPhoneResult = result,
+                isLoading = loading,
                 error = if (result.ok) null else result.message
             )
         }
+    }
+
+    private fun parseLocalPhoneCommand(text: String): PhoneAutomationAction? {
+        val parts = text.trim().split(Regex("\\s+"), limit = 2)
+        val command = parts.firstOrNull()?.lowercase() ?: return null
+        val arg = parts.getOrNull(1).orEmpty().trim()
+        return when (command) {
+            "/phone", "/snapshot" -> PhoneAutomationAction.Snapshot
+            "/back" -> PhoneAutomationAction.Back
+            "/home" -> PhoneAutomationAction.Home
+            "/recents" -> PhoneAutomationAction.Recents
+            "/tap" -> parseTap(arg)
+            "/type" -> if (arg.isNotBlank()) PhoneAutomationAction.TypeText(arg) else null
+            "/swipe" -> parseSwipe(arg)
+            else -> null
+        }
+    }
+
+    private fun parseTap(arg: String): PhoneAutomationAction? {
+        if (arg.matches(Regex("p\\d+", RegexOption.IGNORE_CASE))) return PhoneAutomationAction.TapRef(arg.lowercase())
+        val nums = arg.split(',', ' ').mapNotNull { it.toIntOrNull() }
+        return if (nums.size >= 2) PhoneAutomationAction.Tap(nums[0], nums[1]) else null
+    }
+
+    private fun parseSwipe(arg: String): PhoneAutomationAction? {
+        val nums = arg.split(',', ' ').mapNotNull { it.toIntOrNull() }
+        return if (nums.size >= 4) PhoneAutomationAction.Swipe(nums[0], nums[1], nums[2], nums[3]) else null
     }
 
     companion object {
@@ -156,9 +208,29 @@ data class AgentOverlayUiState(
     val selectedThreadId: String? = null,
     val availableModels: List<AgentModel> = HermesGatewayClient.DEFAULT_MODELS,
     val chatOptions: ChatOptions = ChatOptions(),
+    val phoneSnapshot: PhoneScreenSnapshot? = null,
+    val lastPhoneResult: PhoneAutomationResult? = null,
     val isLoading: Boolean = false,
     val error: String? = null
 )
+
+private fun PhoneScreenSnapshot.toHermesContext(): String = buildString {
+    append("\n\nCurrent phone automation context (RustDesk-style local input, Playwright MCP-style refs):\n")
+    append("screen=").append(width).append('x').append(height).append(" rotation=").append(rotation)
+    packageName?.let { append(" package=").append(it) }
+    windowTitle?.let { append(" window=").append(it) }
+    append("\nrefs:\n")
+    elements.take(12).forEach { element ->
+        append('[').append(element.ref).append("] ")
+            .append(element.text.ifBlank { element.contentDescription.orEmpty() }.take(80))
+            .append(" bounds=")
+            .append(element.bounds.left).append(',').append(element.bounds.top).append(',')
+            .append(element.bounds.right).append(',').append(element.bounds.bottom)
+            .append(" flags=")
+            .append(listOfNotNull("click".takeIf { element.clickable }, "edit".takeIf { element.editable }, "scroll".takeIf { element.scrollable }).joinToString("/").ifBlank { "view" })
+            .append('\n')
+    }
+}
 
 
 private fun List<AgentThread>.upsertMessage(threadId: String, message: ChatMessage): List<AgentThread> {
