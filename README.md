@@ -45,6 +45,8 @@ hermes gateway
 
 For an Android emulator, use `http://10.0.2.2:8642` as the gateway URL. For a physical device, expose the gateway over your LAN or a trusted tunnel and use `http://<host-ip>:8642` or HTTPS via a reverse proxy.
 
+For remote phone access through Cloudflare Tunnel, see [`docs/cloudflare-tunnel-pairing.md`](docs/cloudflare-tunnel-pairing.md). Remote endpoints must use HTTPS; local cleartext HTTP is reserved for emulator/localhost development.
+
 ## Build
 
 ```bash

@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.slapglif.agentoverlay.data.AgentOverlayRepository
 import com.slapglif.agentoverlay.data.AppPreferences
+import com.slapglif.agentoverlay.hermes.GatewayPairingPayload
 import com.slapglif.agentoverlay.hermes.HermesGatewayClient
 import com.slapglif.agentoverlay.model.AgentModel
 import com.slapglif.agentoverlay.model.AgentThread
@@ -38,6 +39,15 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
     fun setApiKey(value: String) {
         _state.update { it.copy(apiKey = value) }
         viewModelScope.launch { repository.saveApiKey(value) }
+    }
+
+    fun applyPairingIntent(uriText: String?) {
+        val payload = GatewayPairingPayload.parse(uriText) ?: return
+        _state.update { it.copy(gatewayUrl = payload.gatewayUrl, apiKey = payload.apiKey, error = null) }
+        viewModelScope.launch {
+            repository.saveGatewayUrl(payload.gatewayUrl)
+            repository.saveApiKey(payload.apiKey)
+        }
     }
 
     fun connect() = viewModelScope.launch {
