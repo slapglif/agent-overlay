@@ -208,10 +208,7 @@ class HermesGatewayClient(
             AgentModel("gemini-3.1-flash-lite", "Gemini Flash Lite")
         )
 
-        fun normalizeBaseUrl(baseUrl: String): String {
-            val trimmed = baseUrl.trim().trimEnd('/')
-            return if (trimmed.endsWith("/v1")) trimmed.removeSuffix("/v1") else trimmed
-        }
+        fun normalizeBaseUrl(baseUrl: String): String = GatewayEndpointPolicy.requireNormalizedBaseUrl(baseUrl)
     }
 }
 
