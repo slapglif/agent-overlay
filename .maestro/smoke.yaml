@@ -8,7 +8,12 @@ appId: com.slapglif.agentoverlay.debug
 - assertVisible: "Chat"
 - assertVisible: "Agents"
 - assertVisible: "Phone"
+- assertVisible: "Hosts"
 - assertVisible: "Settings"
+- tapOn: "Hosts"
+- assertVisible: "Burrow hosts"
+- assertVisible: "Burrow registry"
+- tapOn: "Chat"
 - tapOn: "Connect"
 - extendedWaitUntil:
     visible: "Live Hermes run"

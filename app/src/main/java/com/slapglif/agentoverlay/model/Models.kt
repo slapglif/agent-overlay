@@ -5,6 +5,17 @@ sealed interface GatewayConnection {
     data class Connected(val baseUrl: String, val capabilities: Set<String>) : GatewayConnection
 }
 
+data class BurrowHost(
+    val id: String,
+    val name: String,
+    val status: String,
+    val model: String = "",
+    val tools: List<String> = emptyList(),
+    val skills: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
+    val task: String = ""
+)
+
 data class AgentThread(
     val id: String,
     val title: String,

@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.1.4 — 2026-05-15
+
+### Added
+- Burrow registry host discovery from `wss://reg.ai-smith.net` using an in-app WebSocket registry client.
+- Dedicated Hosts screen for scanning live peers and inspecting advertised models, tools, skills, tags, and status.
+- Capability constellation on the Hosts screen showing reasoning, tool-call, and phone-control readiness.
+
+### Changed
+- Reworked screen navigation to include Chat, Agents, Phone, Hosts, and Settings as first-class destinations.
+- Strengthened the app's agentic-phone-control UX around refs, tool calls, slash commands, and host routing.
+
+### Validation
+- `ANDROID_HOME=/home/mikeb/android-sdk ./gradlew --no-daemon --rerun-tasks :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease`
+
 ## v0.1.3 — 2026-05-15
 
 ### Changed

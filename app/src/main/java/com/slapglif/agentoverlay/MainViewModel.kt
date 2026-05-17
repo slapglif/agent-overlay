@@ -9,6 +9,7 @@ import com.slapglif.agentoverlay.data.AppPreferences
 import com.slapglif.agentoverlay.hermes.HermesGatewayClient
 import com.slapglif.agentoverlay.model.AgentModel
 import com.slapglif.agentoverlay.model.AgentThread
+import com.slapglif.agentoverlay.model.BurrowHost
 import com.slapglif.agentoverlay.model.ChatMessage
 import com.slapglif.agentoverlay.model.ChatOptions
 import com.slapglif.agentoverlay.model.GatewayConnection
@@ -30,7 +31,7 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
     init {
         viewModelScope.launch {
             repository.preferences.collect { prefs ->
-                _state.update { it.copy(gatewayUrl = prefs.gatewayUrl, apiKey = prefs.apiKey) }
+                _state.update { it.copy(gatewayUrl = prefs.gatewayUrl, apiKey = prefs.apiKey, burrowRegistryUrl = prefs.burrowRegistryUrl) }
             }
         }
     }
@@ -43,6 +44,26 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
     fun setApiKey(value: String) {
         _state.update { it.copy(apiKey = value) }
         viewModelScope.launch { repository.saveApiKey(value) }
+    }
+
+    fun setBurrowRegistryUrl(value: String) {
+        _state.update { it.copy(burrowRegistryUrl = value) }
+        viewModelScope.launch { repository.saveBurrowRegistryUrl(value) }
+    }
+
+    fun discoverBurrowHosts() = viewModelScope.launch {
+        _state.update { it.copy(isLoading = true, error = null, burrowDiscoveryStatus = "Searching registry…") }
+        runCatching { repository.discoverBurrowHosts() }
+            .onSuccess { hosts ->
+                _state.update { current ->
+                    current.copy(
+                        burrowHosts = hosts,
+                        isLoading = false,
+                        burrowDiscoveryStatus = if (hosts.isEmpty()) "No peers announced yet" else "Found ${hosts.size} peer${if (hosts.size == 1) "" else "s"}"
+                    )
+                }
+            }
+            .onFailure { err -> _state.update { it.copy(isLoading = false, error = err.message, burrowDiscoveryStatus = "Registry unavailable") } }
     }
 
     fun connect() = viewModelScope.launch {
@@ -203,6 +224,9 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
 data class AgentOverlayUiState(
     val gatewayUrl: String = "http://10.0.2.2:8642",
     val apiKey: String = "",
+    val burrowRegistryUrl: String = "wss://reg.ai-smith.net",
+    val burrowHosts: List<BurrowHost> = emptyList(),
+    val burrowDiscoveryStatus: String = "Not scanned yet",
     val connection: GatewayConnection = GatewayConnection.Disconnected,
     val threads: List<AgentThread> = emptyList(),
     val selectedThreadId: String? = null,

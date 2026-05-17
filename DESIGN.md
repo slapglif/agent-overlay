@@ -89,7 +89,7 @@ Agent Overlay now uses a Material Design 3 dark-mode-first workbench model with 
 
 Applied notes:
 
-- Full-screen Activity uses separate Chat, Agents, Phone, and Settings screens with bottom navigation; no permanent sidebar/rail on phone.
+- Full-screen Activity uses separate Chat, Agents, Phone, Hosts, and Settings screens with bottom navigation; no permanent sidebar/rail on phone.
 - Dark surface stack: background → panel → surface → raised surface.
 - Primary action uses active indigo container, not low-contrast gray.
 - Agent cards use checkpoint/status language with compact labels.
@@ -114,7 +114,7 @@ Use Inter/system sans throughout, aligned to Material 3 roles: headline for the 
 
 ## Layout
 
-- Full-screen app: mobile-native screen stack with bottom navigation: Chat first, Agents/session list, Phone tools, Settings/gateway.
+- Full-screen app: mobile-native screen stack with bottom navigation: Chat first, Agents/session list, Phone tools, Burrow host discovery, Settings/gateway.
 - Overlay: command icon → attached quick-action tray → agent card list or quick section → selected agent view remains the primary user journey.
 - Full-screen Activity is secondary and opens only via title/gear/expand.
 - Interactive controls should meet or exceed 48dp height where practical; compact overlay chips may be visually smaller but must sit in larger tap regions when promoted to production.
@@ -132,7 +132,7 @@ Use Material 3 surface containers rather than arbitrary translucency. Elevation 
 
 ## Components
 
-- **Bottom navigation:** four explicit destinations — Chat, Agents, Phone, Settings — with selected primary container tint and no sidebar on phone.
+- **Bottom navigation:** five explicit destinations — Chat, Agents, Phone, Hosts, Settings — with selected primary container tint and no sidebar on phone.
 - **Status pill:** high-contrast label/value chip.
 - **Floating command button:** one small circular always-on-top affordance with a status dot; first tap unfolds controls rather than opening a large panel immediately.
 - **Quick-action tray:** compact attached list with obvious Monica/Messenger-style rows for Live chat, Agents, Lists, Phone tools, and Settings.
@@ -142,6 +142,7 @@ Use Material 3 surface containers rather than arbitrary translucency. Elevation 
 - **Slash-command palette:** `/commands`, `/skills`, `/reason`, `/tools` appear only when the composer starts with `/`, never as persistent transcript clutter.
 - **Activity disclosure:** reasoning and tool calls show as a compact “Hermes is working / Activity” row with a plain checklist, not as fake chat participants.
 - **Phone automation panel:** RustDesk-inspired local service boundary (capture/context + input injection on device) exposed as Playwright MCP-style tools: `phone.snapshot`, `phone.accessibility_tree`, `phone.tap`, `phone.type`, `phone.swipe`, `phone.back`, and `phone.home`. Use visible refs and bounding boxes before coordinates; destructive actions need explicit confirmation.
+- **Burrow Hosts screen:** registry URL field + scan action + live peer cards showing name, status, model, tools, skills, and tags. This is the host-discovery bridge for routing Hermes/agent work beyond the local phone.
 
 ## Do's and Don'ts
 

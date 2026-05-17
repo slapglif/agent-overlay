@@ -34,6 +34,8 @@ class MainActivity : ComponentActivity() {
                         state = state,
                         onGatewayUrlChanged = viewModel::setGatewayUrl,
                         onApiKeyChanged = viewModel::setApiKey,
+                        onBurrowRegistryUrlChanged = viewModel::setBurrowRegistryUrl,
+                        onDiscoverBurrowHosts = viewModel::discoverBurrowHosts,
                         onConnect = viewModel::connect,
                         onRefresh = viewModel::refresh,
                         onStartOverlay = { requestOverlayAndStartService() },

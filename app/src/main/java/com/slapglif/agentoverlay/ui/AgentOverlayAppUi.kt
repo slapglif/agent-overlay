@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.slapglif.agentoverlay.AgentOverlayUiState
 import com.slapglif.agentoverlay.model.AgentThread
+import com.slapglif.agentoverlay.model.BurrowHost
 import com.slapglif.agentoverlay.model.ChatMessage
 import com.slapglif.agentoverlay.model.ChatOptions
 import com.slapglif.agentoverlay.model.GatewayConnection
@@ -78,6 +79,7 @@ private enum class AppSection(val label: String, val hint: String) {
     Chat("Chat", "Talk"),
     Agents("Agents", "Sessions"),
     Phone("Phone", "Inspect"),
+    Hosts("Hosts", "Burrow"),
     Settings("Settings", "Gateway")
 }
 
@@ -86,6 +88,8 @@ fun AgentOverlayAppUi(
     state: AgentOverlayUiState,
     onGatewayUrlChanged: (String) -> Unit,
     onApiKeyChanged: (String) -> Unit,
+    onBurrowRegistryUrlChanged: (String) -> Unit,
+    onDiscoverBurrowHosts: () -> Unit,
     onConnect: () -> Unit,
     onRefresh: () -> Unit,
     onStartOverlay: () -> Unit,
@@ -160,6 +164,12 @@ fun AgentOverlayAppUi(
                         onInspectPhone = onInspectPhone,
                         onPerformPhoneAction = onPerformPhoneAction,
                         onOpenChat = { section = AppSection.Chat },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    AppSection.Hosts -> HostsScreen(
+                        state = state,
+                        onRegistryUrlChanged = onBurrowRegistryUrlChanged,
+                        onDiscover = onDiscoverBurrowHosts,
                         modifier = Modifier.fillMaxSize()
                     )
                     AppSection.Settings -> SettingsScreen(
@@ -237,6 +247,7 @@ private fun topBarSubtitle(section: AppSection, state: AgentOverlayUiState): Str
     AppSection.Chat -> if (state.isLoading) "Hermes is working" else "Ready · ${friendlyModel(state.chatOptions.modelId)}"
     AppSection.Agents -> "${state.threads.size.coerceAtLeast(1)} sessions · tap one to resume"
     AppSection.Phone -> state.phoneSnapshot?.let { "${it.packageName ?: "active app"} · ${it.elements.size} refs" } ?: "Inspect app UI and run phone tools"
+    AppSection.Hosts -> state.burrowDiscoveryStatus
     AppSection.Settings -> connectionText(state.connection)
 }
 
@@ -400,6 +411,96 @@ private fun RefRow(ref: String, text: String, onTap: () -> Unit) {
 private fun ErrorOrResultStrip(message: String, ok: Boolean) {
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background((if (ok) AgentColors.Success else AgentColors.RayRed).copy(alpha = 0.10f)).border(1.dp, (if (ok) AgentColors.Success else AgentColors.RayRed).copy(alpha = 0.26f), RoundedCornerShape(16.dp)).padding(12.dp)) {
         Text(message, color = if (ok) AgentColors.Success else AgentColors.RayRed, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HostsScreen(
+    state: AgentOverlayUiState,
+    onRegistryUrlChanged: (String) -> Unit,
+    onDiscover: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    GlassPanel(modifier.testTag("hosts-screen")) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("Burrow hosts", color = AgentColors.Text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Find live Hermes peers on the registry, then route agent work to the right host.", color = AgentColors.Muted, fontSize = 13.sp)
+                }
+                CommandButton("Scan", onDiscover, Modifier.width(96.dp).testTag("burrow-discover-button"), primary = true)
+            }
+            OutlinedTextField(
+                state.burrowRegistryUrl,
+                onRegistryUrlChanged,
+                label = { Text("Burrow registry") },
+                supportingText = { Text("Public default: wss://reg.ai-smith.net") },
+                singleLine = true,
+                colors = textFieldColors(),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().testTag("burrow-registry-field")
+            )
+            CapabilityConstellation(state)
+            Text(state.burrowDiscoveryStatus, color = AgentColors.Info, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.weight(1f).fillMaxWidth()) {
+                if (state.burrowHosts.isEmpty()) {
+                    item { EmptyHostsCard() }
+                } else {
+                    items(state.burrowHosts) { host -> HostRow(host) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CapabilityConstellation(state: AgentOverlayUiState) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FeatureTile("Reason", state.chatOptions.reasoningMode.name, AgentColors.Indigo, Modifier.weight(1f))
+        FeatureTile("Tools", if (state.chatOptions.toolCallsEnabled) "armed" else "off", AgentColors.Success, Modifier.weight(1f))
+        FeatureTile("Phone", state.phoneSnapshot?.elements?.size?.let { "$it refs" } ?: "ready", AgentColors.Info, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun FeatureTile(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
+    Column(modifier.clip(RoundedCornerShape(18.dp)).background(color.copy(alpha = 0.10f)).border(1.dp, color.copy(alpha = 0.24f), RoundedCornerShape(18.dp)).padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label.uppercase(), color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text(value, color = AgentColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun EmptyHostsCard() {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(AgentColors.SurfaceHigh).border(1.dp, AgentColors.Border, RoundedCornerShape(20.dp)).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("No hosts loaded", color = AgentColors.Text, fontWeight = FontWeight.SemiBold)
+        Text("Tap Scan to discover Burrow peers advertising tools, skills, and models.", color = AgentColors.Muted, fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun HostRow(host: BurrowHost) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(AgentColors.SurfaceHigh).border(1.dp, AgentColors.Border, RoundedCornerShape(20.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.size(38.dp).clip(CircleShape).background(AgentColors.Indigo.copy(alpha = 0.20f)).border(1.dp, AgentColors.Indigo.copy(alpha = 0.42f), CircleShape), contentAlignment = Alignment.Center) {
+                Text(host.name.take(1).uppercase(), color = AgentColors.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(host.name, color = AgentColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(listOf(host.model.ifBlank { "model unknown" }, host.status).joinToString(" · "), color = AgentColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text("ready", color = AgentColors.Success, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+        val chips = (host.tools.take(3) + host.skills.take(2) + host.tags.take(2)).distinct()
+        if (chips.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                chips.take(4).forEach { chip ->
+                    Text(chip, color = AgentColors.Text, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).clip(RoundedCornerShape(999.dp)).background(AgentColors.Surface).border(1.dp, AgentColors.Border, RoundedCornerShape(999.dp)).padding(horizontal = 8.dp, vertical = 6.dp))
+                }
+            }
+        }
+        if (host.task.isNotBlank()) Text(host.task, color = AgentColors.Subtle, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
