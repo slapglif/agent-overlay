@@ -17,6 +17,10 @@ class HermesGatewayClientTest {
         assertEquals("http://10.0.2.2:8642", HermesGatewayClient.normalizeBaseUrl(" http://10.0.2.2:8642/ "))
     }
 
+    @Test(expected = IllegalArgumentException::class) fun normalizeBaseUrlRejectsRemoteCleartext() {
+        HermesGatewayClient.normalizeBaseUrl("http://hermes-mobile.example.com:8642")
+    }
+
     @Test fun sendMessageIncludesHermesOptionsAndPhoneToolContract() = runTest {
         val server = MockWebServer()
         server.enqueue(MockResponse().setBody("""
