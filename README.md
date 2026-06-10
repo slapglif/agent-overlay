@@ -1,5 +1,7 @@
 # Agent Overlay
 
+[![Android CI](https://github.com/slapglif/agent-overlay/actions/workflows/android.yml/badge.svg?branch=main)](https://github.com/slapglif/agent-overlay/actions/workflows/android.yml)
+
 Agent Overlay is a production-oriented Android command-and-control client for Hermes Agent gateways. It gives you a persistent floating ☤ icon, a compact C&C panel, and a Discord-with-threads-style chat dashboard for managing Hermes gateway sessions, scheduled jobs, and long-running agents from your phone.
 
 ## Hermes gateway contract
