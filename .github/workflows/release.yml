@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+    branches: [main]
   workflow_dispatch:
     inputs:
       tag:
@@ -17,25 +18,46 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Derive tag and skip if the release already exists
+        id: guard
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG="v$(sed -n 's/.*versionName = "\(.*\)"/\1/p' app/build.gradle.kts)"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG")
+          if [ "$code" = "200" ]; then
+            echo "Release $TAG already exists; nothing to publish."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-java@v4
+        if: steps.guard.outputs.skip != 'true'
         with:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        if: steps.guard.outputs.skip != 'true'
       - name: Build APKs
+        if: steps.guard.outputs.skip != 'true'
         run: ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease
       - name: Stage release assets
-        id: stage
+        if: steps.guard.outputs.skip != 'true'
         run: |
-          TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          TAG="${{ steps.guard.outputs.tag }}"
           mkdir -p dist
           cp app/build/outputs/apk/debug/app-debug.apk "dist/agent-overlay-${TAG}-debug.apk"
           cp app/build/outputs/apk/release/app-release-unsigned.apk "dist/agent-overlay-${TAG}-release-unsigned.apk"
           (cd dist && sha256sum * > SHA256SUMS.txt)
       - name: Write release notes from CHANGELOG
+        if: steps.guard.outputs.skip != 'true'
         run: |
-          TAG="${{ steps.stage.outputs.tag }}"
+          TAG="${{ steps.guard.outputs.tag }}"
           VERSION="${TAG#v}"
           {
             echo "## Changelog"
@@ -47,9 +69,10 @@ jobs:
             echo "- \`SHA256SUMS.txt\` — checksums for both APKs."
           } > release-notes.md
       - name: Publish GitHub release
+        if: steps.guard.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.stage.outputs.tag }}
-          name: Agent Overlay ${{ steps.stage.outputs.tag }}
+          tag_name: ${{ steps.guard.outputs.tag }}
+          name: Agent Overlay ${{ steps.guard.outputs.tag }}
           body_path: release-notes.md
           files: dist/*
