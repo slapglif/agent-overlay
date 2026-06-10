@@ -116,6 +116,10 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
         _state.update { it.copy(chatOptions = it.chatOptions.copy(commandPassthroughEnabled = enabled)) }
     }
 
+    fun dismissError() {
+        _state.update { it.copy(error = null) }
+    }
+
     fun sendMessage(text: String) = viewModelScope.launch {
         val threadId = _state.value.selectedThreadId ?: "mobile-overlay"
         if (text.isBlank()) return@launch
@@ -125,7 +129,7 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
             return@launch
         }
         val options = _state.value.chatOptions
-        val phoneContext = phoneAutomation.currentSnapshot()?.toHermesContext().orEmpty()
+        val phoneContext = if (options.toolCallsEnabled) phoneAutomation.currentSnapshot()?.toHermesContext().orEmpty() else ""
         _state.update { current ->
             current.copy(
                 threads = current.threads.upsertMessage(threadId, ChatMessage.User(text)),

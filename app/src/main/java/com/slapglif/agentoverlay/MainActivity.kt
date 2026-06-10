@@ -46,7 +46,8 @@ class MainActivity : ComponentActivity() {
                         onToolCallsToggled = viewModel::setToolCallsEnabled,
                         onCommandPassthroughToggled = viewModel::setCommandPassthroughEnabled,
                         onInspectPhone = viewModel::inspectPhone,
-                        onPerformPhoneAction = viewModel::performPhoneAction
+                        onPerformPhoneAction = viewModel::performPhoneAction,
+                        onDismissError = viewModel::dismissError
                     )
                 }
             }
