@@ -141,6 +141,8 @@ Use Material 3 surface containers rather than arbitrary translucency. Elevation 
 - **Agentic chat controls:** model picker in the header; composer `+` opens user-language actions such as Deep answer / Use web / Use files; activity details expand only on demand.
 - **Slash-command palette:** `/commands`, `/skills`, `/reason`, `/tools` appear only when the composer starts with `/`, never as persistent transcript clutter.
 - **Activity disclosure:** reasoning and tool calls show as a compact “Hermes is working / Activity” row with a plain checklist, not as fake chat participants.
+- **Empty transcript starter chips:** the empty chat state offers tappable suggestions that prefill the composer instead of a bare placeholder.
+- **Message metadata:** bubbles carry a role label and a quiet HH:mm timestamp; the send control is a circular ↑ button matching messenger conventions.
 - **Phone automation panel:** RustDesk-inspired local service boundary (capture/context + input injection on device) exposed as Playwright MCP-style tools: `phone.snapshot`, `phone.accessibility_tree`, `phone.tap`, `phone.type`, `phone.swipe`, `phone.back`, and `phone.home`. Use visible refs and bounding boxes before coordinates; destructive actions need explicit confirmation.
 - **Burrow Hosts screen:** registry URL field + scan action + live peer cards showing name, status, model, tools, skills, and tags. This is the host-discovery bridge for routing Hermes/agent work beyond the local phone.
 

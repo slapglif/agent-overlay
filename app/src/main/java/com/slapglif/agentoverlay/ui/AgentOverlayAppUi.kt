@@ -12,11 +12,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,9 +36,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -62,9 +58,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.slapglif.agentoverlay.AgentOverlayUiState
 import com.slapglif.agentoverlay.model.AgentThread
 import com.slapglif.agentoverlay.model.BurrowHost
@@ -100,7 +100,8 @@ fun AgentOverlayAppUi(
     onToolCallsToggled: (Boolean) -> Unit,
     onCommandPassthroughToggled: (Boolean) -> Unit,
     onInspectPhone: () -> Unit,
-    onPerformPhoneAction: (PhoneAutomationAction) -> Unit
+    onPerformPhoneAction: (PhoneAutomationAction) -> Unit,
+    onDismissError: () -> Unit = {}
 ) {
     var draft by remember { mutableStateOf("") }
     var section by remember { mutableStateOf(AppSection.Chat) }
@@ -129,7 +130,7 @@ fun AgentOverlayAppUi(
                 onConnect = onConnect,
                 onOpenSettings = { section = AppSection.Settings }
             )
-            state.error?.let { ErrorStrip(it) }
+            state.error?.let { ErrorStrip(it, onDismiss = onDismissError) }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (section) {
                     AppSection.Chat -> ChatScreen(
@@ -527,80 +528,6 @@ private fun SettingsScreen(
 }
 
 @Composable
-private fun HeroHeader(state: AgentOverlayUiState, onStartOverlay: () -> Unit, onConnect: () -> Unit) {
-    GlassPanel {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.size(42.dp).clip(CircleShape).background(Brush.linearGradient(listOf(AgentColors.Indigo, AgentColors.Info))).border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape), contentAlignment = Alignment.Center) {
-                    Text("AO", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                }
-                Text(
-                    "Agent Overlay",
-                    color = AgentColors.Text,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = (-0.7).sp,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                MiniStatusDot(state.connection)
-            }
-            Text(
-                "Tiny command button → quick actions → agent view",
-                color = AgentColors.Muted,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                StatPill("Gateway", if (state.connection is GatewayConnection.Connected) "online" else "local")
-                StatPill("Agents", state.threads.size.coerceAtLeast(1).toString())
-                StatPill("Mode", "hover")
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CommandButton("Connect", onConnect, Modifier.weight(1f).testTag("hero-connect-button"), primary = true)
-                CommandButton("Float", onStartOverlay, Modifier.weight(1f).testTag("start-overlay-button"))
-            }
-        }
-    }
-}
-
-@Composable
-private fun BubbleClusterMark() {
-    Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
-        Box(Modifier.size(58.dp).clip(CircleShape).background(AgentColors.Indigo.copy(alpha = 0.16f)))
-        Box(Modifier.size(48.dp).clip(CircleShape).background(Brush.linearGradient(listOf(AgentColors.Indigo, AgentColors.Info))).border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape), contentAlignment = Alignment.Center) {
-            Text("AO", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-        }
-        Box(Modifier.align(Alignment.BottomEnd).size(18.dp).clip(CircleShape).background(AgentColors.Success).border(2.dp, AgentColors.Panel, CircleShape))
-    }
-}
-
-@Composable
-private fun FlowHintStrip() {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(AgentColors.SurfaceHigh)
-            .border(1.dp, AgentColors.Border, RoundedCornerShape(16.dp))
-            .padding(horizontal = 10.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text("Icon", color = AgentColors.Text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        Text("→", color = AgentColors.Subtle, fontSize = 12.sp)
-        Text("quick tray", color = AgentColors.Muted, fontSize = 12.sp)
-        Text("→", color = AgentColors.Subtle, fontSize = 12.sp)
-        Text("agent view", color = AgentColors.Indigo, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.weight(1f))
-        Text("⚙ full screen", color = AgentColors.Subtle, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
 private fun MiniStatusDot(connection: GatewayConnection) {
     val connected = connection is GatewayConnection.Connected
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -649,24 +576,6 @@ private fun GatewayConfigCard(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CommandButton("Connect", onConnect, Modifier.weight(1f).testTag("connect-button"), primary = true)
                 CommandButton("Refresh", onRefresh, Modifier.weight(1f).testTag("refresh-button"))
-            }
-        }
-    }
-}
-
-@Composable
-private fun ThreadList(threads: List<AgentThread>, selectedId: String?, onSelectThread: (String) -> Unit, modifier: Modifier = Modifier) {
-    GlassPanel(modifier.testTag("thread-list")) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Agent bubble roster", color = AgentColors.Text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.weight(1f))
-                Text("HOVER-FIRST", color = AgentColors.Subtle, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(threads.ifEmpty { listOf(AgentThread("mobile-overlay", "Mobile overlay", AgentThread.Status.Idle)) }) { thread ->
-                    ThreadRow(thread, selected = thread.id == selectedId, onClick = { onSelectThread(thread.id) })
-                }
             }
         }
     }
@@ -759,7 +668,7 @@ private fun ChatPane(
                     .padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                if (messages.isEmpty()) item { EmptyTranscript() } else items(messages) { message -> MessageBubble(message) }
+                if (messages.isEmpty()) item { EmptyTranscript(onSuggestion = onDraftChanged) } else items(messages) { message -> MessageBubble(message) }
             }
             if (draft.startsWith("/")) {
                 Spacer(Modifier.height(8.dp))
@@ -791,9 +700,10 @@ private fun ChatPane(
                     onClick = onSend,
                     enabled = draft.isNotBlank(),
                     shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = AgentColors.Indigo, disabledContainerColor = AgentColors.SurfaceHigh, contentColor = Color.White),
+                    contentPadding = PaddingValues(0.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AgentColors.Indigo, disabledContainerColor = AgentColors.SurfaceHigh, contentColor = Color.White, disabledContentColor = AgentColors.Subtle),
                     modifier = Modifier.size(48.dp).semantics { contentDescription = "Send message" }.testTag("send-button")
-                ) { Text("Send", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+                ) { Text("↑", fontWeight = FontWeight.Bold, fontSize = 20.sp) }
             }
         }
     }
@@ -818,8 +728,6 @@ private fun ChatHeader(thread: AgentThread?, state: AgentOverlayUiState, onSelec
             Text(if (state.isLoading) "Working…" else "Ready · ${friendlyModel(state.chatOptions.modelId)}", color = AgentColors.Muted, fontSize = 12.sp)
         }
         ModelMenu(state, onSelectModel)
-        Text("⋯", color = AgentColors.Subtle, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        Text("↗", color = AgentColors.Subtle, fontSize = 18.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -1126,7 +1034,11 @@ private fun MessageBubble(message: ChatMessage) {
                     .border(1.dp, if (isUser) AgentColors.Indigo.copy(alpha = 0.42f) else if (isReasoning) AgentColors.Success.copy(alpha = 0.24f) else AgentColors.Border, RoundedCornerShape(18.dp))
                     .padding(12.dp)
             ) {
-                Text(if (isUser) "You" else if (isTool) "Activity" else if (isReasoning) "Reasoning" else "Hermes", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (isUser) "You" else if (isTool) "Activity" else if (isReasoning) "Reasoning" else "Hermes", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.weight(1f))
+                    Text(formatTimestamp(message.timestampMillis), color = AgentColors.Subtle, fontSize = 10.sp)
+                }
                 Spacer(Modifier.height(4.dp))
                 Text(message.text, color = AgentColors.Text, fontSize = 14.sp, lineHeight = 20.sp)
             }
@@ -1143,34 +1055,47 @@ private fun Avatar(label: String, color: Color) {
 }
 
 @Composable
-private fun EmptyTranscript() {
+private fun EmptyTranscript(onSuggestion: (String) -> Unit) {
     Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("No messages yet", color = AgentColors.Text, fontWeight = FontWeight.SemiBold)
         Text("Ask normally. Hermes will choose models, tools, and commands when needed.", color = AgentColors.Muted, fontSize = 13.sp)
+        Spacer(Modifier.height(4.dp))
+        SuggestionChip("What can you do?") { onSuggestion("What can you do?") }
+        SuggestionChip("Inspect this screen") { onSuggestion("/phone") }
+        SuggestionChip("Think something through") { onSuggestion("Think this through: ") }
     }
 }
+
+@Composable
+private fun SuggestionChip(label: String, onClick: () -> Unit) {
+    Text(
+        label,
+        color = AgentColors.Info,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth(0.86f)
+            .clip(RoundedCornerShape(999.dp))
+            .background(AgentColors.SurfaceHigh)
+            .border(1.dp, AgentColors.Border, RoundedCornerShape(999.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 11.dp)
+    )
+}
+
+private fun formatTimestamp(millis: Long): String =
+    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(millis))
 
 @Composable
 private fun LoadingPill() {
-    Box(Modifier.fillMaxWidth().padding(16.dp).testTag("loading-indicator"), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().padding(bottom = 96.dp).testTag("loading-indicator"), contentAlignment = Alignment.BottomCenter) {
         GlassPanel(Modifier.width(156.dp)) {
             Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = AgentColors.Indigo)
-                Text("Syncing", color = AgentColors.Text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text("Working…", color = AgentColors.Text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
         }
-    }
-}
-
-@Composable
-private fun StatPill(label: String, value: String) {
-    Row(
-        Modifier.clip(RoundedCornerShape(999.dp)).background(AgentColors.SurfaceHigh).border(1.dp, AgentColors.Border, RoundedCornerShape(999.dp)).padding(horizontal = 10.dp, vertical = 7.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label.uppercase(), color = AgentColors.Subtle, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-        Text(value, color = AgentColors.Text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -1197,9 +1122,25 @@ private fun GlassPanel(modifier: Modifier = Modifier, content: @Composable () ->
 }
 
 @Composable
-private fun ErrorStrip(message: String) {
-    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(AgentColors.RayRed.copy(alpha = 0.12f)).border(1.dp, AgentColors.RayRed.copy(alpha = 0.24f), RoundedCornerShape(14.dp)).padding(12.dp)) {
-        Text(message, color = AgentColors.RayRed, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+private fun ErrorStrip(message: String, onDismiss: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(AgentColors.RayRed.copy(alpha = 0.12f)).border(1.dp, AgentColors.RayRed.copy(alpha = 0.24f), RoundedCornerShape(14.dp)).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(message, color = AgentColors.RayRed, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+        Text(
+            "✕",
+            color = AgentColors.RayRed,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .clip(CircleShape)
+                .clickable { onDismiss() }
+                .semantics { contentDescription = "Dismiss error" }
+                .padding(6.dp)
+                .testTag("dismiss-error")
+        )
     }
 }
 

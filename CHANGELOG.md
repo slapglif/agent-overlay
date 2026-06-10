@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.1.5 — 2026-06-10
+
+### Changed
+- Polished the chat surface: circular ↑ send affordance, per-message HH:mm timestamps, and tappable starter suggestion chips on the empty transcript.
+- Moved the progress pill to the bottom of the screen so it no longer covers the top bar, and renamed it "Working…" to match the activity language.
+- Made the global error strip dismissible with an accessible ✕ control.
+- Removed the non-functional ⋯/↗ glyphs from the chat header; full-screen chat no longer advertises affordances it does not have.
+
+### Fixed
+- Phone-screen context is now attached to outgoing prompts only when tool calls are enabled, instead of leaking screen contents into every message.
+
+### Removed
+- ~190 lines of dead dashboard composables (HeroHeader, BubbleClusterMark, FlowHintStrip, ThreadList, StatPill) and unused imports.
+
+### Validation
+- CI Gradle build and JVM unit tests (no Android SDK in the authoring environment).
+
 ## v0.1.4 — 2026-05-15
 
 ### Added
