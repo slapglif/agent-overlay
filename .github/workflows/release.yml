@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.1.5); must match a version section in CHANGELOG.md'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Build APKs
+        run: ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease
+      - name: Stage release assets
+        id: stage
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/agent-overlay-${TAG}-debug.apk"
+          cp app/build/outputs/apk/release/app-release-unsigned.apk "dist/agent-overlay-${TAG}-release-unsigned.apk"
+          (cd dist && sha256sum * > SHA256SUMS.txt)
+      - name: Write release notes from CHANGELOG
+        run: |
+          TAG="${{ steps.stage.outputs.tag }}"
+          VERSION="${TAG#v}"
+          {
+            echo "## Changelog"
+            echo
+            awk -v ver="$VERSION" '$0 ~ "^## v"ver" " {flag=1; next} /^## v/ {flag=0} flag' CHANGELOG.md
+            echo "### Assets"
+            echo "- \`agent-overlay-${TAG}-debug.apk\` — installable debug build signed by the Android debug key."
+            echo "- \`agent-overlay-${TAG}-release-unsigned.apk\` — minified/release artifact, unsigned."
+            echo "- \`SHA256SUMS.txt\` — checksums for both APKs."
+          } > release-notes.md
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.stage.outputs.tag }}
+          name: Agent Overlay ${{ steps.stage.outputs.tag }}
+          body_path: release-notes.md
+          files: dist/*
