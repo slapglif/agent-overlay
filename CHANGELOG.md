@@ -15,7 +15,8 @@
 - ~190 lines of dead dashboard composables (HeroHeader, BubbleClusterMark, FlowHintStrip, ThreadList, StatPill) and unused imports.
 
 ### Validation
-- CI Gradle build and JVM unit tests (no Android SDK in the authoring environment).
+- `ANDROID_HOME=/opt/android-sdk ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease`
+- First green Android CI run for the repository after the Actions runner fix.
 
 ## v0.1.4 — 2026-05-15
 
