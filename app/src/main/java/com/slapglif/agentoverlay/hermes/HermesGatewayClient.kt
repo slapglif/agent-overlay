@@ -26,16 +26,22 @@ class HermesGatewayClient(
         .build()
 ) {
     suspend fun capabilities(baseUrl: String, apiKey: String): GatewayConnection = withContext(Dispatchers.IO) {
-        val url = normalizeBaseUrl(baseUrl) + "/v1/models"
-        val request = Request.Builder()
-            .url(url)
-            .bearer(apiKey)
-            .get()
-            .build()
-        httpClient.newCall(request).execute().use { response ->
+        val base = normalizeBaseUrl(baseUrl)
+        val modelsRequest = Request.Builder().url("$base/v1/models").bearer(apiKey).get().build()
+        httpClient.newCall(modelsRequest).execute().use { response ->
             if (!response.isSuccessful) throw IOException("Hermes gateway rejected connection: HTTP ${response.code}")
-            GatewayConnection.Connected(normalizeBaseUrl(baseUrl), setOf("chat_completions", "responses", "runs", "jobs", "models", "commands", "skills", "tool_calls"))
         }
+        // Probe optional surfaces instead of asserting them: jobs/runs/commands live on
+        // the API server's /api side and may be disabled independently of /v1.
+        val jobsAvailable = runCatching {
+            httpClient.newCall(Request.Builder().url("$base/api/jobs").bearer(apiKey).get().build())
+                .execute().use { it.isSuccessful }
+        }.getOrDefault(false)
+        val capabilities = buildSet {
+            add("models"); add("chat_completions"); add("responses"); add("tool_calls")
+            if (jobsAvailable) { add("jobs"); add("runs"); add("commands"); add("skills") }
+        }
+        GatewayConnection.Connected(base, capabilities)
     }
 
     suspend fun listModels(baseUrl: String, apiKey: String): List<AgentModel> = withContext(Dispatchers.IO) {
@@ -68,13 +74,67 @@ class HermesGatewayClient(
         }
     }
 
-    suspend fun sendMessage(baseUrl: String, apiKey: String, threadId: String, message: String, options: ChatOptions): GatewayChatResponse = withContext(Dispatchers.IO) {
+    /**
+     * Sends one user turn with full thread [history], then drives the OpenAI-style tool loop:
+     * while the model answers with phone tool calls and a [toolExecutor] is provided, each call
+     * is executed locally, its result is appended as a `tool` role message, and the conversation
+     * is re-sent so the model can react to outcomes. Capped at [MAX_TOOL_ROUNDS].
+     */
+    suspend fun sendMessage(
+        baseUrl: String,
+        apiKey: String,
+        threadId: String,
+        message: String,
+        options: ChatOptions,
+        history: List<ChatMessage> = emptyList(),
+        toolExecutor: (suspend (PhoneToolCall) -> String)? = null
+    ): GatewayChatResponse = withContext(Dispatchers.IO) {
+        val messages = JSONArray()
+        messages.put(JSONObject().put("role", "system").put("content", buildSystemInstruction(options, message)))
+        history.takeLast(MAX_HISTORY_MESSAGES).forEach { entry ->
+            when (entry) {
+                is ChatMessage.User -> messages.put(JSONObject().put("role", "user").put("content", entry.text))
+                is ChatMessage.Assistant -> messages.put(JSONObject().put("role", "assistant").put("content", entry.text))
+                is ChatMessage.Tool -> messages.put(
+                    JSONObject().put("role", "user").put("content", "[local ${entry.toolName ?: "tool"} result] ${entry.text}")
+                )
+                is ChatMessage.Reasoning -> Unit
+            }
+        }
+        messages.put(JSONObject().put("role", "user").put("content", message))
+
+        var response = postChat(baseUrl, apiKey, threadId, messages, options)
+        var rounds = 0
+        while (toolExecutor != null && response.phoneToolCalls.isNotEmpty() && rounds < MAX_TOOL_ROUNDS) {
+            messages.put(assistantToolCallMessage(response))
+            response.phoneToolCalls.forEach { call ->
+                val result = toolExecutor(call)
+                messages.put(
+                    JSONObject()
+                        .put("role", "tool")
+                        .put("tool_call_id", call.id)
+                        .put("content", result)
+                )
+            }
+            rounds++
+            response = postChat(baseUrl, apiKey, threadId, messages, options)
+        }
+        response
+    }
+
+    private fun postChat(
+        baseUrl: String,
+        apiKey: String,
+        threadId: String,
+        messages: JSONArray,
+        options: ChatOptions
+    ): GatewayChatResponse {
         val payload = JSONObject()
             .put("model", options.modelId.ifBlank { "hermes-agent" })
-            .put("messages", JSONArray()
-                .put(JSONObject().put("role", "system").put("content", buildSystemInstruction(options, message)))
-                .put(JSONObject().put("role", "user").put("content", message)))
+            .put("messages", messages)
             .put("stream", false)
+            // session_id and tools_enabled are Hermes gateway extensions; a strict
+            // OpenAI-compatible endpoint ignores them and relies on messages + tools.
             .put("session_id", threadId)
             .put("tools_enabled", options.toolCallsEnabled)
             .put("reasoning_effort", when (options.reasoningMode) {
@@ -88,11 +148,27 @@ class HermesGatewayClient(
             .bearer(apiKey)
             .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
-        httpClient.newCall(request).execute().use { response ->
+        return httpClient.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) throw IOException("Chat failed: HTTP ${response.code} $body")
             parseChatResponse(body)
         }
+    }
+
+    private fun assistantToolCallMessage(response: GatewayChatResponse): JSONObject {
+        val toolCalls = JSONArray()
+        response.phoneToolCalls.forEach { call ->
+            toolCalls.put(
+                JSONObject()
+                    .put("id", call.id)
+                    .put("type", "function")
+                    .put("function", JSONObject().put("name", call.name).put("arguments", call.argumentsJson.ifBlank { "{}" }))
+            )
+        }
+        return JSONObject()
+            .put("role", "assistant")
+            .put("content", response.text)
+            .put("tool_calls", toolCalls)
     }
 
     private fun parseJobs(body: String): List<AgentThread> {
@@ -192,6 +268,7 @@ class HermesGatewayClient(
             if (options.toolCallsEnabled) {
                 append("Available phone automation tools use Playwright MCP-style refs and RustDesk-style local input: ")
                 append("phone.snapshot, phone.accessibility_tree, phone.vision_snapshot, phone.ocr, phone.tap, phone.type, phone.swipe, phone.back, phone.home, phone.recents. ")
+                append("Tool results are executed on-device and returned to you as tool messages; re-snapshot after actions that change the screen. ")
                 append("Local slash commands /phone, /tap <ref|x y>, /type <text>, /swipe x1 y1 x2 y2, /back, /home, and /recents execute on-device through AccessibilityService. ")
                 append("Prefer semantic refs and bounding boxes over blind coordinates; ask for confirmation before destructive actions. ")
             }
@@ -201,6 +278,8 @@ class HermesGatewayClient(
 
     companion object {
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+        private const val MAX_HISTORY_MESSAGES = 24
+        private const val MAX_TOOL_ROUNDS = 4
         val DEFAULT_MODELS = listOf(
             AgentModel("hermes-agent", "Hermes Agent"),
             AgentModel("gpt-5.5", "GPT-5.5"),

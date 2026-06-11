@@ -5,8 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.slapglif.agentoverlay.data.AgentOverlayRepository
-import com.slapglif.agentoverlay.data.AppPreferences
-import com.slapglif.agentoverlay.hermes.HermesGatewayClient
+import com.slapglif.agentoverlay.hermes.DiscoveredGateway
+import com.slapglif.agentoverlay.hermes.GatewayDiscovery
 import com.slapglif.agentoverlay.model.AgentModel
 import com.slapglif.agentoverlay.model.AgentThread
 import com.slapglif.agentoverlay.model.BurrowHost
@@ -22,16 +22,31 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
-class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel() {
+class MainViewModel(
+    private val repository: AgentOverlayRepository,
+    private val gatewayDiscovery: GatewayDiscovery = AppGraph.gatewayDiscovery()
+) : ViewModel() {
     private val phoneAutomation = PhoneAutomationController()
     private val _state = MutableStateFlow(AgentOverlayUiState())
     val state: StateFlow<AgentOverlayUiState> = _state.asStateFlow()
+    private var optionsSeeded = false
+    private var autoDetectAttempted = false
 
     init {
         viewModelScope.launch {
             repository.preferences.collect { prefs ->
-                _state.update { it.copy(gatewayUrl = prefs.gatewayUrl, apiKey = prefs.apiKey, burrowRegistryUrl = prefs.burrowRegistryUrl) }
+                _state.update { current ->
+                    current.copy(
+                        gatewayUrl = prefs.gatewayUrl,
+                        apiKey = prefs.apiKey,
+                        burrowRegistryUrl = prefs.burrowRegistryUrl,
+                        chatOptions = if (optionsSeeded) current.chatOptions else prefs.chatOptions
+                    )
+                }
+                optionsSeeded = true
+                maybeAutoDetectGateway(prefs.gatewayUrl, prefs.apiKey)
             }
         }
     }
@@ -64,6 +79,58 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
                 }
             }
             .onFailure { err -> _state.update { it.copy(isLoading = false, error = err.message, burrowDiscoveryStatus = "Registry unavailable") } }
+    }
+
+    /** Manual LAN scan from Settings: probes the current /24 for Hermes gateways on :8642. */
+    fun detectGateway() = viewModelScope.launch {
+        _state.update { it.copy(gatewayDiscoveryStatus = "Scanning local network for gateways…", discoveredGateways = emptyList()) }
+        runCatching { gatewayDiscovery.discover() }
+            .onSuccess { found ->
+                _state.update { current ->
+                    current.copy(
+                        discoveredGateways = found,
+                        gatewayDiscoveryStatus = when {
+                            found.isEmpty() -> "No gateway found on this network"
+                            else -> "Found ${found.size} gateway${if (found.size == 1) "" else "s"} — tap one to use it"
+                        }
+                    )
+                }
+            }
+            .onFailure { err -> _state.update { it.copy(gatewayDiscoveryStatus = "Scan failed: ${err.message}") } }
+    }
+
+    fun useDiscoveredGateway(baseUrl: String) {
+        setGatewayUrl(baseUrl)
+        _state.update { it.copy(gatewayDiscoveryStatus = "Using $baseUrl") }
+        connect()
+    }
+
+    private fun maybeAutoDetectGateway(gatewayUrl: String, apiKey: String) {
+        if (autoDetectAttempted) return
+        if (apiKey.isNotBlank() || gatewayUrl != DEFAULT_GATEWAY_URL) {
+            autoDetectAttempted = true
+            return
+        }
+        autoDetectAttempted = true
+        viewModelScope.launch {
+            val found = runCatching { gatewayDiscovery.discover() }.getOrDefault(emptyList())
+            if (found.isEmpty()) return@launch
+            val best = found.first()
+            // Apply only if the user hasn't configured anything in the meantime.
+            if (_state.value.gatewayUrl == DEFAULT_GATEWAY_URL && _state.value.connection is GatewayConnection.Disconnected) {
+                setGatewayUrl(best.baseUrl)
+                _state.update {
+                    it.copy(
+                        discoveredGateways = found,
+                        gatewayDiscoveryStatus = if (best.requiresAuth) {
+                            "Gateway detected at ${best.baseUrl} — add its API key, then Connect"
+                        } else {
+                            "Gateway detected at ${best.baseUrl} — tap Connect"
+                        }
+                    )
+                }
+            }
+        }
     }
 
     fun connect() = viewModelScope.launch {
@@ -100,20 +167,18 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
         _state.update { it.copy(selectedThreadId = id) }
     }
 
-    fun selectModel(modelId: String) {
-        _state.update { it.copy(chatOptions = it.chatOptions.copy(modelId = modelId)) }
-    }
+    fun selectModel(modelId: String) = updateChatOptions { it.copy(modelId = modelId) }
 
-    fun setReasoningMode(mode: ChatOptions.ReasoningMode) {
-        _state.update { it.copy(chatOptions = it.chatOptions.copy(reasoningMode = mode)) }
-    }
+    fun setReasoningMode(mode: ChatOptions.ReasoningMode) = updateChatOptions { it.copy(reasoningMode = mode) }
 
-    fun setToolCallsEnabled(enabled: Boolean) {
-        _state.update { it.copy(chatOptions = it.chatOptions.copy(toolCallsEnabled = enabled)) }
-    }
+    fun setToolCallsEnabled(enabled: Boolean) = updateChatOptions { it.copy(toolCallsEnabled = enabled) }
 
-    fun setCommandPassthroughEnabled(enabled: Boolean) {
-        _state.update { it.copy(chatOptions = it.chatOptions.copy(commandPassthroughEnabled = enabled)) }
+    fun setCommandPassthroughEnabled(enabled: Boolean) = updateChatOptions { it.copy(commandPassthroughEnabled = enabled) }
+
+    private fun updateChatOptions(transform: (ChatOptions) -> ChatOptions) {
+        val updated = transform(_state.value.chatOptions)
+        _state.update { it.copy(chatOptions = updated) }
+        viewModelScope.launch { repository.saveChatOptions(updated) }
     }
 
     fun dismissError() {
@@ -130,6 +195,7 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
         }
         val options = _state.value.chatOptions
         val phoneContext = if (options.toolCallsEnabled) phoneAutomation.currentSnapshot()?.toHermesContext().orEmpty() else ""
+        val history = _state.value.threads.firstOrNull { it.id == threadId }?.messages.orEmpty()
         _state.update { current ->
             current.copy(
                 threads = current.threads.upsertMessage(threadId, ChatMessage.User(text)),
@@ -137,7 +203,13 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
                 error = null
             )
         }
-        runCatching { repository.sendMessage(threadId, text + phoneContext, options) }
+        runCatching {
+            repository.sendMessage(threadId, text + phoneContext, options, history) { call ->
+                val result = phoneAutomation.executeTool(call.name, JSONObject(call.argumentsJson.ifBlank { "{}" }))
+                applyPhoneResult(threadId, result, loading = true)
+                result.message
+            }
+        }
             .onSuccess { response ->
                 _state.update { current ->
                     current.copy(
@@ -145,8 +217,9 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
                         isLoading = false
                     )
                 }
+                // Tool calls left over after the round cap run without model feedback.
                 response.phoneToolCalls.forEach { call ->
-                    val result = phoneAutomation.executeTool(call.name, org.json.JSONObject(call.argumentsJson.ifBlank { "{}" }))
+                    val result = phoneAutomation.executeTool(call.name, JSONObject(call.argumentsJson.ifBlank { "{}" }))
                     applyPhoneResult(threadId, result, loading = false)
                 }
             }
@@ -214,27 +287,32 @@ class MainViewModel(private val repository: AgentOverlayRepository) : ViewModel(
     }
 
     companion object {
+        const val DEFAULT_GATEWAY_URL = "http://10.0.2.2:8642"
+
         fun factory(context: Context): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                val prefs = AppPreferences(context.applicationContext)
-                val client = HermesGatewayClient()
-                return MainViewModel(AgentOverlayRepository(prefs, client)) as T
+                require(modelClass.isAssignableFrom(MainViewModel::class.java)) {
+                    "Unknown ViewModel class ${modelClass.name}"
+                }
+                return MainViewModel(AppGraph.repository(context)) as T
             }
         }
     }
 }
 
 data class AgentOverlayUiState(
-    val gatewayUrl: String = "http://10.0.2.2:8642",
+    val gatewayUrl: String = MainViewModel.DEFAULT_GATEWAY_URL,
     val apiKey: String = "",
     val burrowRegistryUrl: String = "wss://reg.ai-smith.net",
     val burrowHosts: List<BurrowHost> = emptyList(),
     val burrowDiscoveryStatus: String = "Not scanned yet",
+    val discoveredGateways: List<DiscoveredGateway> = emptyList(),
+    val gatewayDiscoveryStatus: String? = null,
     val connection: GatewayConnection = GatewayConnection.Disconnected,
     val threads: List<AgentThread> = emptyList(),
     val selectedThreadId: String? = null,
-    val availableModels: List<AgentModel> = HermesGatewayClient.DEFAULT_MODELS,
+    val availableModels: List<AgentModel> = emptyList(),
     val chatOptions: ChatOptions = ChatOptions(),
     val phoneSnapshot: PhoneScreenSnapshot? = null,
     val lastPhoneResult: PhoneAutomationResult? = null,
@@ -259,7 +337,6 @@ private fun PhoneScreenSnapshot.toHermesContext(): String = buildString {
             .append('\n')
     }
 }
-
 
 private fun List<AgentThread>.upsertMessage(threadId: String, message: ChatMessage): List<AgentThread> {
     val existing = firstOrNull { it.id == threadId }

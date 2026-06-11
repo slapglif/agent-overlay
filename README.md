@@ -47,6 +47,8 @@ hermes gateway
 
 For an Android emulator, use `http://10.0.2.2:8642` as the gateway URL. For a physical device, expose the gateway over your LAN or a trusted tunnel and use `http://<host-ip>:8642` or HTTPS via a reverse proxy.
 
+On a LAN, the app can find the gateway for you: on first launch it scans the local /24 subnet for hosts answering on `:8642`, and Settings has a **Scan LAN** card that lists every gateway found (including whether it requires an API key) — tap one to use it.
+
 ## Build
 
 ```bash

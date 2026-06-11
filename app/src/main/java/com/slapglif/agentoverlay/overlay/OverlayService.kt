@@ -25,12 +25,11 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
+import com.slapglif.agentoverlay.AppGraph
 import com.slapglif.agentoverlay.MainActivity
 import com.slapglif.agentoverlay.R
-import com.slapglif.agentoverlay.data.AgentOverlayRepository
-import com.slapglif.agentoverlay.data.AppPreferences
-import com.slapglif.agentoverlay.hermes.HermesGatewayClient
-import com.slapglif.agentoverlay.model.ChatOptions
+import com.slapglif.agentoverlay.model.AgentThread
+import com.slapglif.agentoverlay.model.ChatMessage
 import com.slapglif.agentoverlay.model.PhoneAutomationAction
 import com.slapglif.agentoverlay.phone.PhoneAutomationController
 import kotlinx.coroutines.CoroutineScope
@@ -38,25 +37,28 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 class OverlayService : Service() {
     private lateinit var windowManager: WindowManager
     private var overlayView: View? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private lateinit var repository: AgentOverlayRepository
+    private val repository by lazy { AppGraph.repository(applicationContext) }
     private val phoneAutomation = PhoneAutomationController()
     private var mode = OverlayMode.Bubble
-    private var selectedAgent = AGENTS.first()
+    private var agents: List<OverlayAgent> = emptyList()
+    private var selectedAgent: OverlayAgent = PLACEHOLDER_AGENT
     private val floatingMessages = mutableListOf(
-        "Hermes" to "Standing by in Live Hermes run. Ask normally; I’ll reason, use tools, or run commands when needed."
+        FloatingMessage("Hermes", "Standing by in Live Hermes run. Ask normally; I’ll reason, use tools, or run commands when needed.", wire = false)
     )
 
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        repository = AgentOverlayRepository(AppPreferences(applicationContext), HermesGatewayClient())
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, notification())
+        refreshAgents()
         if (Settings.canDrawOverlays(this)) showOverlay()
     }
 
@@ -68,6 +70,18 @@ class OverlayService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    /** Loads real gateway sessions so the overlay never shows placeholder agents. */
+    private fun refreshAgents() {
+        serviceScope.launch {
+            val threads = runCatching { withContext(Dispatchers.IO) { repository.loadThreads() } }.getOrDefault(emptyList())
+            agents = threads.map { it.toOverlayAgent() }
+            if (agents.none { it.id == selectedAgent.id }) selectedAgent = agents.firstOrNull() ?: PLACEHOLDER_AGENT
+            if (mode == OverlayMode.AgentList || mode == OverlayMode.Chat) {
+                overlayView?.let { view -> renderOverlay(view.layoutParams as WindowManager.LayoutParams) }
+            }
+        }
+    }
 
     private fun showOverlay() {
         val params = overlayParams().apply {
@@ -133,6 +147,7 @@ class OverlayService : Service() {
         })
         setOnClickListener {
             mode = OverlayMode.Tray
+            refreshAgents()
             renderOverlay(params)
         }
     }
@@ -159,23 +174,25 @@ class OverlayService : Service() {
                     typeface = Typeface.DEFAULT_BOLD
                     setTextColor(TEXT)
                 }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-                addView(actionChip("×") {
+                addView(actionChip("×", description = "Collapse to bubble") {
                     mode = OverlayMode.Bubble
                     renderOverlay(params)
                 })
             })
 
             addView(trayRow("💬", "Live chat", "Open the current agent", SUCCESS) {
-                selectedAgent = AGENTS.first()
+                selectedAgent = agents.firstOrNull() ?: PLACEHOLDER_AGENT
                 mode = OverlayMode.Chat
                 renderOverlay(params)
             })
             addView(trayRow("●", "Agents", "Switch active assistant", INDIGO) {
                 mode = OverlayMode.AgentList
+                refreshAgents()
                 renderOverlay(params)
             })
             addView(trayRow("☰", "Lists", "Queues and recent runs", INFO) {
                 mode = OverlayMode.AgentList
+                refreshAgents()
                 renderOverlay(params)
             })
             addView(trayRow("⌖", "Phone tools", "Inspect, tap, type, swipe", SUCCESS) {
@@ -197,12 +214,20 @@ class OverlayService : Service() {
             setPadding(0, dp(12), 0, dp(4))
         })
         addView(TextView(context).apply {
-            text = "Tap a card to animate into that agent view. Use ↗ / ⚙ for full-screen sections."
+            text = "Live gateway sessions. Tap a card to open that agent view."
             textSize = 13f
             setTextColor(MUTED)
             setPadding(0, 0, 0, dp(10))
         })
-        AGENTS.forEach { agent ->
+        if (agents.isEmpty()) {
+            addView(TextView(context).apply {
+                text = "No sessions yet — connect a gateway in the full app."
+                textSize = 13f
+                setTextColor(MUTED)
+                setPadding(dp(4), dp(8), dp(4), dp(8))
+            })
+        }
+        agents.forEach { agent ->
             addView(agentRow(agent) {
                 selectedAgent = agent
                 mode = OverlayMode.Chat
@@ -239,16 +264,16 @@ class OverlayService : Service() {
                     setTextColor(statusColor(selectedAgent.status))
                 })
             }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            addView(actionChip("↗") { openMainActivity() })
+            addView(actionChip("↗", description = "Open full screen") { openMainActivity() })
         })
         addView(activityRibbon())
         addView(ScrollView(context).apply {
-            background = rounded(Color.argb(80, 0, 0, 0), 20f, Color.argb(18, 255, 255, 255))
+            background = rounded(Color.argb(80, 0, 0, 0), 24f, Color.argb(18, 255, 255, 255))
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(10), dp(10), dp(10), dp(10))
-                floatingMessages.forEach { (sender, body) ->
-                    addView(message(sender, body, alignEnd = sender == "You"))
+                floatingMessages.forEach { entry ->
+                    addView(message(entry.sender, entry.body, alignEnd = entry.sender == "You"))
                 }
             })
         }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -265,18 +290,19 @@ class OverlayService : Service() {
                 setSingleLine(false)
                 setTextColor(TEXT)
                 setHintTextColor(SUBTLE)
-                background = rounded(Color.argb(26, 255, 255, 255), 18f, Color.argb(28, 255, 255, 255))
+                background = rounded(Color.argb(26, 255, 255, 255), 16f, Color.argb(28, 255, 255, 255))
                 setPadding(dp(12), 0, dp(12), 0)
             }
             addView(input, LinearLayout.LayoutParams(0, dp(48), 1f).apply { rightMargin = dp(8) })
-            addView(actionChip("Send", wide = true) {
+            addView(actionChip("Send", wide = true, description = "Send message") {
                 val text = input.text?.toString()?.trim().orEmpty()
                 if (text.isNotEmpty()) {
-                    floatingMessages += "You" to text
-                    floatingMessages += "Hermes" to "Sending to Hermes gateway…"
+                    val history = floatingMessages.filter { it.wire }.map { it.toChatMessage() }
+                    addFloatingMessage(FloatingMessage("You", text))
+                    addFloatingMessage(FloatingMessage("Hermes", PENDING_BODY, wire = false))
                     input.text?.clear()
                     renderOverlay(params)
-                    sendFloatingMessage(text, params)
+                    sendFloatingMessage(text, history, params)
                 }
             })
         })
@@ -306,16 +332,16 @@ class OverlayService : Service() {
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            addView(actionChip("Inspect", wide = true) {
-                floatingMessages += "Hermes" to "Run /phone in chat for the latest on-device refs and bounds."
+            addView(actionChip("Inspect", wide = true, description = "Inspect phone") {
+                addFloatingMessage(FloatingMessage("Hermes", "Run /phone in chat for the latest on-device refs and bounds.", wire = false))
                 mode = OverlayMode.Chat
                 renderOverlay(params)
             }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(8) })
-            addView(actionChip("Console", wide = true) { openMainActivity() }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(actionChip("Console", wide = true, description = "Open full app") { openMainActivity() }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         })
     }
 
-    private fun sendFloatingMessage(text: String, params: WindowManager.LayoutParams) {
+    private fun sendFloatingMessage(text: String, history: List<ChatMessage>, params: WindowManager.LayoutParams) {
         serviceScope.launch {
             val localPhoneResult = parseFloatingPhoneCommand(text)?.let { phoneAutomation.perform(it) }
                 ?: if (text.trim().equals("/phone", ignoreCase = true) || text.trim().equals("/snapshot", ignoreCase = true)) phoneAutomation.inspect() else null
@@ -323,18 +349,35 @@ class OverlayService : Service() {
                 localPhoneResult.message
             } else {
                 runCatching {
-                    val response = repository.sendMessage("mobile-overlay", text, ChatOptions())
+                    val options = repository.currentChatOptions()
+                    val response = repository.sendMessage("mobile-overlay", text, options, history) { call ->
+                        val result = phoneAutomation.executeTool(call.name, JSONObject(call.argumentsJson.ifBlank { "{}" }))
+                        withContext(Dispatchers.Main) {
+                            addFloatingMessage(FloatingMessage("Activity", result.message))
+                            if (mode == OverlayMode.Chat) renderOverlay(params)
+                        }
+                        result.message
+                    }
                     response.phoneToolCalls.forEach { call ->
-                        val result = phoneAutomation.executeTool(call.name, org.json.JSONObject(call.argumentsJson.ifBlank { "{}" }))
-                        floatingMessages += "Activity" to result.message
+                        val result = phoneAutomation.executeTool(call.name, JSONObject(call.argumentsJson.ifBlank { "{}" }))
+                        addFloatingMessage(FloatingMessage("Activity", result.message))
                     }
                     response.text
                 }.getOrElse { err -> "Gateway unavailable: ${err.message ?: err.javaClass.simpleName}" }
             }
-            val pendingIndex = floatingMessages.indexOfLast { it.first == "Hermes" && it.second == "Sending to Hermes gateway…" }
-            if (pendingIndex >= 0) floatingMessages[pendingIndex] = "Hermes" to responseText else floatingMessages += "Hermes" to responseText
+            val pendingIndex = floatingMessages.indexOfLast { it.sender == "Hermes" && it.body == PENDING_BODY }
+            if (pendingIndex >= 0) {
+                floatingMessages[pendingIndex] = FloatingMessage("Hermes", responseText)
+            } else {
+                addFloatingMessage(FloatingMessage("Hermes", responseText))
+            }
             if (mode == OverlayMode.Chat) renderOverlay(params)
         }
+    }
+
+    private fun addFloatingMessage(message: FloatingMessage) {
+        floatingMessages += message
+        while (floatingMessages.size > MAX_FLOATING_MESSAGES) floatingMessages.removeAt(0)
     }
 
     private fun parseFloatingPhoneCommand(text: String): PhoneAutomationAction? {
@@ -358,7 +401,6 @@ class OverlayService : Service() {
     private fun activityRibbon(): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(0, 0, 0, dp(9))
         background = rounded(Color.argb(22, 255, 255, 255), 999f, Color.argb(24, 255, 255, 255))
         setPadding(dp(10), dp(7), dp(10), dp(7))
         addView(TextView(context).apply {
@@ -367,12 +409,6 @@ class OverlayService : Service() {
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(MUTED)
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        addView(TextView(context).apply {
-            text = "⋯"
-            textSize = 18f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(TEXT)
-        })
     }
 
     private fun hoverControls(params: WindowManager.LayoutParams, title: String): LinearLayout = LinearLayout(this).apply {
@@ -392,16 +428,17 @@ class OverlayService : Service() {
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(MUTED)
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        addView(actionChip("⌁") {
+        addView(actionChip("⌁", description = "Quick actions") {
             mode = OverlayMode.Tray
             renderOverlay(params)
         })
-        addView(actionChip("☰") {
+        addView(actionChip("☰", description = "Open agent list") {
             mode = OverlayMode.AgentList
+            refreshAgents()
             renderOverlay(params)
         })
-        addView(actionChip("⚙") { openMainActivity() })
-        addView(actionChip("×") {
+        addView(actionChip("⚙", description = "Open settings") { openMainActivity() })
+        addView(actionChip("×", description = "Collapse to bubble") {
             mode = OverlayMode.Bubble
             renderOverlay(params)
         })
@@ -428,7 +465,7 @@ class OverlayService : Service() {
     private fun trayRow(icon: String, title: String, subtitle: String, color: Int, onClick: () -> Unit): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        background = rounded(Color.argb(18, 255, 255, 255), 18f, Color.argb(24, 255, 255, 255))
+        background = rounded(Color.argb(18, 255, 255, 255), 16f, Color.argb(24, 255, 255, 255))
         setPadding(dp(9), dp(8), dp(9), dp(8))
         setOnClickListener { onClick() }
         addView(TextView(context).apply {
@@ -458,7 +495,7 @@ class OverlayService : Service() {
     private fun agentRow(agent: OverlayAgent, onSelect: () -> Unit): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        background = rounded(Color.argb(22, 255, 255, 255), 22f, Color.argb(30, 255, 255, 255))
+        background = rounded(Color.argb(22, 255, 255, 255), 24f, Color.argb(30, 255, 255, 255))
         setPadding(dp(11), dp(11), dp(11), dp(11))
         setOnClickListener { onSelect() }
         addView(agentBubble(agent, compact = true), LinearLayout.LayoutParams(dp(42), dp(42)).apply { rightMargin = dp(10) })
@@ -478,11 +515,12 @@ class OverlayService : Service() {
                 setOnClickListener { onSelect() }
             })
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        addView(actionChip("View") { onSelect() }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(8) })
+        addView(actionChip("View", description = "Open ${agent.title}") { onSelect() }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(8) })
         addView(TextView(context).apply {
             text = "●"
             textSize = 14f
             setTextColor(statusColor(agent.status))
+            contentDescription = "Status: ${agent.status}"
         })
     }
 
@@ -505,6 +543,7 @@ class OverlayService : Service() {
     }
 
     private fun commandGlyph(): FrameLayout = FrameLayout(this).apply {
+        contentDescription = "Agent command button"
         background = rounded(INDIGO, 999f, Color.argb(88, 255, 255, 255))
         elevation = dp(12).toFloat()
         addView(TextView(context).apply {
@@ -521,7 +560,7 @@ class OverlayService : Service() {
         textSize = 13f
         setLineSpacing(0f, 1.08f)
         setTextColor(TEXT)
-        background = rounded(if (alignEnd) Color.argb(66, 113, 112, 255) else Color.argb(30, 255, 255, 255), 18f, Color.argb(26, 255, 255, 255))
+        background = rounded(if (alignEnd) Color.argb(66, 139, 131, 255) else Color.argb(30, 255, 255, 255), 16f, Color.argb(26, 255, 255, 255))
         setPadding(dp(10), dp(8), dp(10), dp(8))
         val width = dp(250)
         layoutParams = LinearLayout.LayoutParams(width, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
@@ -532,7 +571,7 @@ class OverlayService : Service() {
 
     private fun panel(widthDp: Int, heightDp: Int): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        background = rounded(PANEL, 30f, Color.argb(34, 255, 255, 255))
+        background = rounded(PANEL, 28f, Color.argb(34, 255, 255, 255))
         elevation = dp(18).toFloat()
         setPadding(dp(14), dp(12), dp(14), dp(14))
         minimumWidth = dp(widthDp)
@@ -545,19 +584,21 @@ class OverlayService : Service() {
         typeface = Typeface.DEFAULT_BOLD
         setTextColor(color)
         gravity = Gravity.CENTER
+        minHeight = dp(44)
         setPadding(dp(12), dp(12), dp(12), 0)
         setOnClickListener { onClick() }
     }
 
-    private fun actionChip(textValue: String, wide: Boolean = false, onClick: () -> Unit = {}): TextView = TextView(this).apply {
+    private fun actionChip(textValue: String, wide: Boolean = false, description: String? = null, onClick: () -> Unit = {}): TextView = TextView(this).apply {
         text = textValue
         gravity = Gravity.CENTER
         textSize = if (wide) 13f else 14f
         typeface = Typeface.DEFAULT_BOLD
         setTextColor(TEXT)
-        background = rounded(if (wide) INDIGO else Color.rgb(35, 36, 44), 999f, Color.argb(34, 255, 255, 255))
-        minWidth = dp(if (wide) 58 else 34)
-        minHeight = dp(34)
+        description?.let { contentDescription = it }
+        background = rounded(if (wide) INDIGO_DEEP else Color.rgb(34, 37, 45), 999f, Color.argb(34, 255, 255, 255))
+        minWidth = dp(if (wide) 58 else 40)
+        minHeight = dp(40)
         setPadding(dp(if (wide) 14 else 9), dp(7), dp(if (wide) 14 else 9), dp(7))
         setOnClickListener { onClick() }
     }
@@ -565,7 +606,7 @@ class OverlayService : Service() {
     private fun overlayParams(): WindowManager.LayoutParams = WindowManager.LayoutParams(
         WindowManager.LayoutParams.WRAP_CONTENT,
         WindowManager.LayoutParams.WRAP_CONTENT,
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
         PixelFormat.TRANSLUCENT
     )
@@ -607,8 +648,8 @@ class OverlayService : Service() {
 
     private fun statusColor(status: String): Int = when (status) {
         "running" -> SUCCESS
-        "failed" -> RAY_RED
-        "done" -> INDIGO
+        "failed" -> ACCENT
+        "done", "completed" -> INDIGO
         else -> WARN
     }
 
@@ -617,20 +658,56 @@ class OverlayService : Service() {
     companion object {
         private const val CHANNEL_ID = "agent_overlay"
         private const val NOTIFICATION_ID = 42
-        private val TEXT = Color.rgb(246, 247, 251)
-        private val MUTED = Color.rgb(160, 166, 180)
-        private val SUBTLE = Color.rgb(118, 126, 143)
-        private val PANEL = Color.rgb(5, 6, 8)
-        private val RAY_RED = Color.rgb(255, 99, 99)
-        private val INDIGO = Color.rgb(113, 112, 255)
-        private val SUCCESS = Color.rgb(69, 222, 128)
-        private val WARN = Color.rgb(245, 184, 76)
+        private const val MAX_FLOATING_MESSAGES = 80
+        private const val PENDING_BODY = "Sending to Hermes gateway…"
+
+        // Mirrors tokens.json / ui.theme.AgentColors — keep in sync with DESIGN.md.
+        private val TEXT = Color.rgb(244, 246, 251)
+        private val MUTED = Color.rgb(178, 184, 196)
+        private val SUBTLE = Color.rgb(123, 130, 144)
+        private val PANEL = Color.rgb(16, 17, 22)
+        private val ACCENT = Color.rgb(255, 122, 26)
+        private val INDIGO = Color.rgb(139, 131, 255)
+        private val INDIGO_DEEP = Color.rgb(103, 91, 232)
+        private val SUCCESS = Color.rgb(69, 212, 131)
+        private val WARN = Color.rgb(255, 200, 87)
         private val INFO = Color.rgb(114, 184, 255)
-        private val AGENTS = listOf(
-            OverlayAgent("live", "Live Hermes run", "LH", "running", "streaming", Color.rgb(113, 112, 255)),
-            OverlayAgent("brief", "Daily gateway brief", "DB", "idle", "ready", Color.rgb(255, 99, 99)),
-            OverlayAgent("ops", "Ops sentinel", "OS", "done", "watched", Color.rgb(41, 182, 246))
+
+        private val PLACEHOLDER_AGENT = OverlayAgent(
+            id = "mobile-overlay",
+            title = "Hermes",
+            initials = "H",
+            status = "idle",
+            description = "gateway session",
+            color = INDIGO
         )
+    }
+}
+
+private fun AgentThread.toOverlayAgent(): OverlayAgent = OverlayAgent(
+    id = id,
+    title = title,
+    initials = title.split(" ").take(2).mapNotNull { it.firstOrNull()?.uppercase() }.joinToString("").ifBlank { "A" },
+    status = when (status) {
+        AgentThread.Status.Running -> "running"
+        AgentThread.Status.Failed -> "failed"
+        AgentThread.Status.Completed -> "done"
+        AgentThread.Status.Idle -> "idle"
+    },
+    description = "gateway session",
+    color = when (status) {
+        AgentThread.Status.Running -> Color.rgb(139, 131, 255)
+        AgentThread.Status.Failed -> Color.rgb(255, 122, 26)
+        AgentThread.Status.Completed -> Color.rgb(69, 212, 131)
+        AgentThread.Status.Idle -> Color.rgb(114, 184, 255)
+    }
+)
+
+private data class FloatingMessage(val sender: String, val body: String, val wire: Boolean = true) {
+    fun toChatMessage(): ChatMessage = when (sender) {
+        "You" -> ChatMessage.User(body)
+        "Activity" -> ChatMessage.Tool(text = body, toolName = "phone")
+        else -> ChatMessage.Assistant(body)
     }
 }
 
