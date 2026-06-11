@@ -5,9 +5,11 @@ import com.slapglif.agentoverlay.hermes.HermesGatewayClient
 import com.slapglif.agentoverlay.model.AgentModel
 import com.slapglif.agentoverlay.model.AgentThread
 import com.slapglif.agentoverlay.model.BurrowHost
+import com.slapglif.agentoverlay.model.ChatMessage
 import com.slapglif.agentoverlay.model.ChatOptions
 import com.slapglif.agentoverlay.model.GatewayChatResponse
 import com.slapglif.agentoverlay.model.GatewayConnection
+import com.slapglif.agentoverlay.model.PhoneToolCall
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 
@@ -21,6 +23,9 @@ class AgentOverlayRepository(
     suspend fun saveGatewayUrl(value: String) = preferencesStore.saveGatewayUrl(value)
     suspend fun saveApiKey(value: String) = preferencesStore.saveApiKey(value)
     suspend fun saveBurrowRegistryUrl(value: String) = preferencesStore.saveBurrowRegistryUrl(value)
+    suspend fun saveChatOptions(options: ChatOptions) = preferencesStore.saveChatOptions(options)
+
+    suspend fun currentChatOptions(): ChatOptions = preferences.first().chatOptions
 
     suspend fun checkConnection(): GatewayConnection {
         val prefs = preferences.first()
@@ -37,9 +42,15 @@ class AgentOverlayRepository(
         return client.listModels(prefs.gatewayUrl, prefs.apiKey)
     }
 
-    suspend fun sendMessage(threadId: String, message: String, options: ChatOptions): GatewayChatResponse {
+    suspend fun sendMessage(
+        threadId: String,
+        message: String,
+        options: ChatOptions,
+        history: List<ChatMessage> = emptyList(),
+        toolExecutor: (suspend (PhoneToolCall) -> String)? = null
+    ): GatewayChatResponse {
         val prefs = preferences.first()
-        return client.sendMessage(prefs.gatewayUrl, prefs.apiKey, threadId, message, options)
+        return client.sendMessage(prefs.gatewayUrl, prefs.apiKey, threadId, message, options, history, toolExecutor)
     }
 
     suspend fun discoverBurrowHosts(): List<BurrowHost> {

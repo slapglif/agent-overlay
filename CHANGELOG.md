@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.1.6 — 2026-06-11
+
+### Added
+- LAN gateway auto-detection: the app probes :8642 across the local /24 for running Hermes gateways, auto-fills the URL on first launch, and Settings gains a "Scan LAN" card listing discovered gateways with auth/latency info.
+- Real agentic tool loop: phone tool calls are executed on-device and their results are sent back to the model as `tool` role messages (up to 4 rounds), so multi-step phone automation can react to outcomes.
+- Conversation history (last 24 messages) is now replayed to `/v1/chat/completions` instead of sending each message context-free.
+- Chat settings (model, reasoning, tools, passthrough) persist via DataStore and are honored by the floating overlay instead of hardcoded defaults.
+
+### Changed
+- One shared repository/HTTP/preferences graph (`AppGraph`) across the activity, view model, and overlay service.
+- The overlay agent list now shows real gateway sessions from `/api/jobs` instead of three hardcoded placeholder agents, and its palette matches the design tokens.
+- Gateway capabilities are probed (`/api/jobs`) instead of hardcoded after any 200.
+- Navigation section and chat draft survive rotation (`rememberSaveable`); system Back returns to Chat before exiting.
+- Accessibility pass: content descriptions and button roles on glyph/text controls, ≥44–48dp touch targets, low-contrast small text upgraded from Subtle to Muted.
+- Cleartext HTTP is now permitted via the network security config base policy (Hermes gateways are plain-HTTP LAN services); previously LAN IPs were silently blocked.
+
+### Fixed
+- Burrow registry WebSocket is always closed on timeout/failure.
+- Overlay chat history is bounded (80 messages) and the gateway URL field flags malformed values.
+
+### Validation
+- `ANDROID_HOME=/opt/android-sdk ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug` plus Android CI.
+
 ## v0.1.5 — 2026-06-10
 
 ### Changed

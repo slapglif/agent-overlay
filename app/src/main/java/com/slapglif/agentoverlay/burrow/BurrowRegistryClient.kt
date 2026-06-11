@@ -55,9 +55,11 @@ class BurrowRegistryClient(
             }
         }
         socket = httpClient.newWebSocket(request, listener)
-        val value = kotlinx.coroutines.withTimeout(7000) { result.await() }.getOrThrow()
-        socket?.close(1000, "agent-overlay discovery complete")
-        value
+        try {
+            kotlinx.coroutines.withTimeout(7000) { result.await() }.getOrThrow()
+        } finally {
+            socket?.close(1000, "agent-overlay discovery complete")
+        }
     }
 
     private fun parsePeers(array: JSONArray): List<BurrowHost> = (0 until array.length()).mapNotNull { index ->

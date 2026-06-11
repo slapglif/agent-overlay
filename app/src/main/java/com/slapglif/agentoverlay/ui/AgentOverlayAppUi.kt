@@ -1,5 +1,6 @@
 package com.slapglif.agentoverlay.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandVertically
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +25,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -44,6 +48,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +57,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -83,6 +90,11 @@ private enum class AppSection(val label: String, val hint: String) {
     Settings("Settings", "Gateway")
 }
 
+private val AppSectionSaver = Saver<AppSection, String>(
+    save = { it.name },
+    restore = { saved -> AppSection.values().firstOrNull { it.name == saved } ?: AppSection.Chat }
+)
+
 @Composable
 fun AgentOverlayAppUi(
     state: AgentOverlayUiState,
@@ -101,11 +113,15 @@ fun AgentOverlayAppUi(
     onCommandPassthroughToggled: (Boolean) -> Unit,
     onInspectPhone: () -> Unit,
     onPerformPhoneAction: (PhoneAutomationAction) -> Unit,
-    onDismissError: () -> Unit = {}
+    onDismissError: () -> Unit = {},
+    onDetectGateway: () -> Unit = {},
+    onUseDiscoveredGateway: (String) -> Unit = {}
 ) {
-    var draft by remember { mutableStateOf("") }
-    var section by remember { mutableStateOf(AppSection.Chat) }
+    var draft by rememberSaveable { mutableStateOf("") }
+    var section by rememberSaveable(stateSaver = AppSectionSaver) { mutableStateOf(AppSection.Chat) }
     val selectedThread = state.threads.firstOrNull { it.id == state.selectedThreadId }
+
+    BackHandler(enabled = section != AppSection.Chat) { section = AppSection.Chat }
 
     Box(
         Modifier
@@ -180,6 +196,8 @@ fun AgentOverlayAppUi(
                         onConnect = onConnect,
                         onRefresh = onRefresh,
                         onStartOverlay = onStartOverlay,
+                        onDetectGateway = onDetectGateway,
+                        onUseDiscoveredGateway = onUseDiscoveredGateway,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -208,7 +226,7 @@ private fun AppTopBar(
                 Text("AO", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
             Column(Modifier.weight(1f)) {
-                Text("Agent Overlay", color = AgentColors.Subtle, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, maxLines = 1)
+                Text("Agent Overlay", color = AgentColors.Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, maxLines = 1)
                 Text(section.label, color = AgentColors.Text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.4).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(topBarSubtitle(section, state), color = AgentColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -222,8 +240,10 @@ private fun AppTopBar(
                     .clip(RoundedCornerShape(999.dp))
                     .background(AgentColors.SurfaceHigh)
                     .border(1.dp, AgentColors.Border, RoundedCornerShape(999.dp))
-                    .clickable { onStartOverlay() }
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                    .clickable(onClickLabel = "Launch floating overlay", role = Role.Button) { onStartOverlay() }
+                    .heightIn(min = 44.dp)
+                    .wrapContentHeight()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
                     .testTag("start-overlay-button")
             )
             if (state.connection !is GatewayConnection.Connected) {
@@ -235,8 +255,10 @@ private fun AppTopBar(
                     modifier = Modifier
                         .clip(RoundedCornerShape(999.dp))
                         .background(AgentColors.IndigoDeep)
-                        .clickable { onConnect() }
-                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                        .clickable(onClickLabel = "Connect to gateway", role = Role.Button) { onConnect() }
+                        .heightIn(min = 44.dp)
+                        .wrapContentHeight()
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
                         .testTag("hero-connect-button")
                 )
             }
@@ -268,7 +290,7 @@ private fun BottomNav(section: AppSection, onSectionChanged: (AppSection) -> Uni
                         .clip(RoundedCornerShape(18.dp))
                         .background(if (active) AgentColors.Indigo.copy(alpha = 0.16f) else Color.Transparent)
                         .border(1.dp, if (active) AgentColors.Indigo.copy(alpha = 0.34f) else Color.Transparent, RoundedCornerShape(18.dp))
-                        .clickable { onSectionChanged(item) }
+                        .clickable(onClickLabel = "Open ${item.label}", role = Role.Tab) { onSectionChanged(item) }
                         .padding(vertical = 9.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -326,7 +348,7 @@ private fun QuickSetupCard(onOpenSettings: () -> Unit) {
                 Text("Connect a Hermes gateway", color = AgentColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Text("Set URL and API key in Settings when you are ready.", color = AgentColors.Muted, fontSize = 12.sp)
             }
-            Text("Settings", color = AgentColors.Info, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(AgentColors.SurfaceHigh).clickable { onOpenSettings() }.padding(horizontal = 10.dp, vertical = 8.dp))
+            Text("Settings", color = AgentColors.Info, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(AgentColors.SurfaceHigh).clickable(onClickLabel = "Open settings", role = Role.Button) { onOpenSettings() }.heightIn(min = 44.dp).wrapContentHeight().padding(horizontal = 12.dp, vertical = 8.dp))
         }
     }
 }
@@ -398,13 +420,13 @@ private fun PhoneScreen(
 @Composable
 private fun RefRow(ref: String, text: String, onTap: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(AgentColors.SurfaceHigh).border(1.dp, AgentColors.Border, RoundedCornerShape(16.dp)).clickable { onTap() }.padding(11.dp),
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(16.dp)).background(AgentColors.SurfaceHigh).border(1.dp, AgentColors.Border, RoundedCornerShape(16.dp)).clickable(onClickLabel = "Tap element $ref", role = Role.Button) { onTap() }.padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(ref, color = AgentColors.Info, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
         Text(text.ifBlank { "Untitled element" }, color = AgentColors.Text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Text("Tap", color = AgentColors.Subtle, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Text("Tap", color = AgentColors.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -501,7 +523,7 @@ private fun HostRow(host: BurrowHost) {
                 }
             }
         }
-        if (host.task.isNotBlank()) Text(host.task, color = AgentColors.Subtle, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (host.task.isNotBlank()) Text(host.task, color = AgentColors.Muted, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -513,10 +535,13 @@ private fun SettingsScreen(
     onConnect: () -> Unit,
     onRefresh: () -> Unit,
     onStartOverlay: () -> Unit,
+    onDetectGateway: () -> Unit = {},
+    onUseDiscoveredGateway: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         GatewayConfigCard(state, onGatewayUrlChanged, onApiKeyChanged, onConnect, onRefresh)
+        GatewayDiscoveryCard(state, onDetectGateway, onUseDiscoveredGateway)
         GlassPanel {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Overlay", color = AgentColors.Text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
@@ -528,11 +553,61 @@ private fun SettingsScreen(
 }
 
 @Composable
+private fun GatewayDiscoveryCard(
+    state: AgentOverlayUiState,
+    onDetectGateway: () -> Unit,
+    onUseDiscoveredGateway: (String) -> Unit
+) {
+    GlassPanel {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("Find gateway on this network", color = AgentColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Probes :8642 across your local subnet for a running Hermes gateway.", color = AgentColors.Muted, fontSize = 12.sp)
+                }
+                CommandButton("Scan LAN", onDetectGateway, Modifier.width(108.dp).testTag("gateway-detect-button"))
+            }
+            state.gatewayDiscoveryStatus?.let { status ->
+                Text(status, color = AgentColors.Info, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+            state.discoveredGateways.forEach { gateway ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(AgentColors.SurfaceHigh)
+                        .border(1.dp, AgentColors.Border, RoundedCornerShape(16.dp))
+                        .clickable(onClickLabel = "Use gateway ${gateway.baseUrl}", role = Role.Button) { onUseDiscoveredGateway(gateway.baseUrl) }
+                        .heightIn(min = 48.dp)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(gateway.baseUrl, color = AgentColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            if (gateway.requiresAuth) "auth required · ${gateway.latencyMs}ms" else "open · ${gateway.latencyMs}ms",
+                            color = if (gateway.requiresAuth) AgentColors.Warn else AgentColors.Success,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Text("Use", color = AgentColors.Info, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun MiniStatusDot(connection: GatewayConnection) {
     val connected = connection is GatewayConnection.Connected
-    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.semantics { contentDescription = if (connected) "Gateway online" else "Gateway ready" }
+    ) {
         Box(Modifier.size(12.dp).clip(CircleShape).background(if (connected) AgentColors.Success else AgentColors.Warn))
-        Text(if (connected) "ONLINE" else "READY", color = AgentColors.Subtle, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text(if (connected) "ONLINE" else "READY", color = AgentColors.Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -546,20 +621,30 @@ private fun GatewayConfigCard(
     onRefresh: () -> Unit
 ) {
     GlassPanel {
-        Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Settings / command link", color = AgentColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
                 Text(connectionText(state.connection), color = AgentColors.Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            val gatewayUrlValid = state.gatewayUrl.startsWith("http://") || state.gatewayUrl.startsWith("https://")
             OutlinedTextField(
                 state.gatewayUrl,
                 onGatewayUrlChanged,
                 label = { Text("Gateway URL") },
-                supportingText = { Text("10.0.2.2 on emulator • LAN/IP on device") },
+                isError = !gatewayUrlValid,
+                supportingText = {
+                    Text(
+                        when {
+                            state.gatewayUrl.isBlank() -> "Enter a gateway URL, e.g. http://10.0.2.2:3000"
+                            !gatewayUrlValid -> "URL must start with http:// or https://"
+                            else -> "10.0.2.2 on emulator • LAN/IP on device"
+                        }
+                    )
+                },
                 singleLine = true,
                 colors = textFieldColors(),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth().testTag("gateway-url-field")
             )
             OutlinedTextField(
@@ -570,7 +655,7 @@ private fun GatewayConfigCard(
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 colors = textFieldColors(),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth().testTag("api-key-field")
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -592,15 +677,15 @@ private fun ThreadRow(thread: AgentThread, selected: Boolean, onClick: () -> Uni
             .clip(RoundedCornerShape(18.dp))
             .background(bg)
             .border(1.dp, stroke, RoundedCornerShape(18.dp))
-            .clickable { onClick() }
-            .padding(11.dp),
+            .clickable(onClickLabel = "Open session ${thread.title}", role = Role.Button) { onClick() }
+            .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         AgentAvatar(thread.title, statusColor)
         Column(Modifier.weight(1f)) {
             Text(thread.title, color = AgentColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("${thread.id} • tap title for full screen", color = AgentColors.Subtle, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace)
+            Text("${thread.id} • tap title for full screen", color = AgentColors.Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace)
         }
         Text(thread.status.name.lowercase(), color = statusColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
@@ -670,10 +755,18 @@ private fun ChatPane(
             ) {
                 if (messages.isEmpty()) item { EmptyTranscript(onSuggestion = onDraftChanged) } else items(messages) { message -> MessageBubble(message) }
             }
-            if (draft.startsWith("/")) {
-                Spacer(Modifier.height(8.dp))
-                SlashCommandPalette(onDraftChanged, onReasoningModeChanged, onToolCallsToggled, onCommandPassthroughToggled, onInspectPhone, onPerformPhoneAction)
-            } else if (showAddMenu) {
+            val showPalette = draft.startsWith("/")
+            AnimatedVisibility(
+                visible = showPalette,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column {
+                    Spacer(Modifier.height(8.dp))
+                    SlashCommandPalette(onDraftChanged, onReasoningModeChanged, onToolCallsToggled, onCommandPassthroughToggled, onInspectPhone, onPerformPhoneAction)
+                }
+            }
+            if (!showPalette && showAddMenu) {
                 Spacer(Modifier.height(8.dp))
                 ComposerAccessorySheet(onDraftChanged, onReasoningModeChanged, onToolCallsToggled, onInspectPhone) { showAddMenu = false }
             }
@@ -746,8 +839,10 @@ private fun ModelMenu(state: AgentOverlayUiState, onSelectModel: (String) -> Uni
                 .clip(RoundedCornerShape(999.dp))
                 .background(AgentColors.Surface)
                 .border(1.dp, AgentColors.Border, RoundedCornerShape(999.dp))
-                .clickable { expanded = true }
-                .padding(horizontal = 10.dp, vertical = 8.dp)
+                .clickable(onClickLabel = "Switch model", role = Role.Button) { expanded = true }
+                .heightIn(min = 44.dp)
+                .wrapContentHeight()
+                .padding(horizontal = 12.dp, vertical = 8.dp)
                 .testTag("model-switcher")
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -772,8 +867,8 @@ private fun AgentActivityPill(state: AgentOverlayUiState, expanded: Boolean, onT
             .clip(RoundedCornerShape(18.dp))
             .background(if (state.isLoading) AgentColors.Indigo.copy(alpha = 0.12f) else AgentColors.SurfaceHigh)
             .border(1.dp, if (state.isLoading) AgentColors.Indigo.copy(alpha = 0.32f) else AgentColors.Border, RoundedCornerShape(18.dp))
-            .clickable { onToggle() }
-            .padding(horizontal = 11.dp, vertical = 9.dp),
+            .clickable(onClickLabel = if (expanded) "Collapse agent activity" else "Expand agent activity", role = Role.Button) { onToggle() }
+            .padding(horizontal = 12.dp, vertical = 9.dp),
         verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -844,7 +939,9 @@ private fun PhoneAutomationStrip(
                         .clip(RoundedCornerShape(999.dp))
                         .background(AgentColors.Surface)
                         .border(1.dp, AgentColors.Border, RoundedCornerShape(999.dp))
-                        .clickable { onTapRef(element.ref) }
+                        .clickable(onClickLabel = "Tap element ${element.ref}", role = Role.Button) { onTapRef(element.ref) }
+                        .heightIn(min = 44.dp)
+                        .wrapContentHeight()
                         .padding(horizontal = 8.dp, vertical = 6.dp)
                         .testTag("phone-ref-p$index")
                 )
@@ -864,7 +961,9 @@ private fun MiniAction(label: String, tag: String, onClick: () -> Unit) {
             .clip(RoundedCornerShape(999.dp))
             .background(AgentColors.Surface)
             .border(1.dp, AgentColors.Border, RoundedCornerShape(999.dp))
-            .clickable { onClick() }
+            .clickable(onClickLabel = label, role = Role.Button) { onClick() }
+            .heightIn(min = 44.dp)
+            .wrapContentHeight()
             .padding(horizontal = 8.dp, vertical = 6.dp)
             .testTag(tag)
     )
@@ -921,7 +1020,9 @@ private fun AccessoryAction(label: String, onClick: () -> Unit) {
             .clip(RoundedCornerShape(999.dp))
             .background(AgentColors.Surface)
             .border(1.dp, AgentColors.Border, RoundedCornerShape(999.dp))
-            .clickable { onClick() }
+            .clickable(onClickLabel = label, role = Role.Button) { onClick() }
+            .heightIn(min = 44.dp)
+            .wrapContentHeight()
             .padding(horizontal = 10.dp, vertical = 8.dp)
     )
 }
@@ -944,7 +1045,7 @@ private fun SlashCommandPalette(
             .padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text("Hermes commands", color = AgentColors.Subtle, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("Hermes commands", color = AgentColors.Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         CommandRow("/commands", "Show available Hermes commands") {
             onCommandPassthroughToggled(true)
             onDraftChanged("/commands")
@@ -993,8 +1094,8 @@ private fun CommandRow(command: String, description: String, onClick: () -> Unit
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .clickable { onClick() }
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClickLabel = description, role = Role.Button) { onClick() }
             .padding(horizontal = 8.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1079,8 +1180,10 @@ private fun SuggestionChip(label: String, onClick: () -> Unit) {
             .clip(RoundedCornerShape(999.dp))
             .background(AgentColors.SurfaceHigh)
             .border(1.dp, AgentColors.Border, RoundedCornerShape(999.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 11.dp)
+            .clickable(onClickLabel = label, role = Role.Button) { onClick() }
+            .heightIn(min = 48.dp)
+            .wrapContentHeight()
+            .padding(horizontal = 16.dp, vertical = 11.dp)
     )
 }
 
@@ -1103,8 +1206,8 @@ private fun LoadingPill() {
 private fun CommandButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = false) {
     Button(
         onClick = onClick,
-        modifier = modifier.height(46.dp),
-        shape = RoundedCornerShape(14.dp),
+        modifier = modifier.height(48.dp),
+        shape = RoundedCornerShape(16.dp),
         border = if (primary) null else BorderStroke(1.dp, AgentColors.Border),
         colors = ButtonDefaults.buttonColors(containerColor = if (primary) AgentColors.IndigoDeep else AgentColors.SurfaceHigh, contentColor = AgentColors.Text)
     ) { Text(text, fontWeight = FontWeight.SemiBold) }
@@ -1114,7 +1217,7 @@ private fun CommandButton(text: String, onClick: () -> Unit, modifier: Modifier 
 private fun GlassPanel(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(25.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = AgentColors.Panel),
         border = BorderStroke(1.dp, AgentColors.Border),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -1124,7 +1227,7 @@ private fun GlassPanel(modifier: Modifier = Modifier, content: @Composable () ->
 @Composable
 private fun ErrorStrip(message: String, onDismiss: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(AgentColors.RayRed.copy(alpha = 0.12f)).border(1.dp, AgentColors.RayRed.copy(alpha = 0.24f), RoundedCornerShape(14.dp)).padding(12.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(AgentColors.RayRed.copy(alpha = 0.12f)).border(1.dp, AgentColors.RayRed.copy(alpha = 0.24f), RoundedCornerShape(16.dp)).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -1136,8 +1239,10 @@ private fun ErrorStrip(message: String, onDismiss: () -> Unit) {
             fontWeight = FontWeight.Bold,
             modifier = Modifier
                 .clip(CircleShape)
-                .clickable { onDismiss() }
+                .clickable(onClickLabel = "Dismiss error", role = Role.Button) { onDismiss() }
                 .semantics { contentDescription = "Dismiss error" }
+                .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
+                .wrapContentSize()
                 .padding(6.dp)
                 .testTag("dismiss-error")
         )

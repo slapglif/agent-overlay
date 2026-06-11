@@ -47,7 +47,9 @@ class MainActivity : ComponentActivity() {
                         onCommandPassthroughToggled = viewModel::setCommandPassthroughEnabled,
                         onInspectPhone = viewModel::inspectPhone,
                         onPerformPhoneAction = viewModel::performPhoneAction,
-                        onDismissError = viewModel::dismissError
+                        onDismissError = viewModel::dismissError,
+                        onDetectGateway = viewModel::detectGateway,
+                        onUseDiscoveredGateway = viewModel::useDiscoveredGateway
                     )
                 }
             }
